@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, Receipt } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
@@ -9,6 +9,7 @@ import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { useAuth } from '@/contexts/auth-context'
+import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { formatAmountPlain, formatCurrency } from '@/lib/format-currency'
 import { buildSpendingInsights } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
@@ -59,6 +60,31 @@ export default function DashboardPage() {
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
   const [submitting, setSubmitting] = useState(false)
+  const categorySyncedFromSuggestion = useRef<string | null>(null)
+
+  const suggestedCategory = useMemo(
+    () => suggestCategoryFromDescription(description),
+    [description],
+  )
+
+  useEffect(() => {
+    const suggestion = suggestedCategory
+    setCategory((prev) => {
+      const prevTrim = prev.trim()
+      if (suggestion) {
+        if (!prevTrim || prevTrim === categorySyncedFromSuggestion.current) {
+          categorySyncedFromSuggestion.current = suggestion
+          return suggestion
+        }
+        return prev
+      }
+      if (!prevTrim || prevTrim === categorySyncedFromSuggestion.current) {
+        categorySyncedFromSuggestion.current = null
+        return ''
+      }
+      return prev
+    })
+  }, [suggestedCategory])
 
   const analytics = useMemo(
     () => computeAnalytics(transactions),
@@ -133,6 +159,7 @@ export default function DashboardPage() {
     setAmount('')
     setCategory('')
     setDescription('')
+    categorySyncedFromSuggestion.current = null
     await loadTransactions()
   }
 
@@ -287,8 +314,19 @@ export default function DashboardPage() {
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   className={`${inputClass} resize-none`}
-                  placeholder="Optional note"
+                  placeholder="e.g. Swiggy lunch, Uber ride"
                 />
+                {suggestedCategory ? (
+                  <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
+                    Suggested:{' '}
+                    <span className="font-medium text-zinc-600 dark:text-zinc-300">
+                      {suggestedCategory}
+                    </span>
+                    {category.trim() === suggestedCategory ? (
+                      <span className="text-zinc-400 dark:text-zinc-500"> · applied</span>
+                    ) : null}
+                  </p>
+                ) : null}
               </div>
             </div>
             <button
