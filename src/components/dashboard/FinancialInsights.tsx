@@ -11,17 +11,23 @@ export function FinancialInsights({ lines }: FinancialInsightsProps) {
       <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
         Based on your logged transactions (this month vs last month).
       </p>
-      <ul className="mt-5 space-y-3 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-        {lines.map((line, i) => (
-          <li key={i} className="flex gap-2">
-            <span
-              className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400 dark:bg-zinc-500"
-              aria-hidden
-            />
-            <span>{line}</span>
-          </li>
-        ))}
-      </ul>
+      {lines.length === 0 ? (
+        <p className="mt-5 text-sm text-zinc-400 dark:text-zinc-500">
+          Add transactions to see insights about your spending patterns.
+        </p>
+      ) : (
+        <ul className="mt-5 space-y-3 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          {lines.map((line, i) => (
+            <li key={i} className="flex gap-2">
+              <span
+                className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-400 dark:bg-zinc-500"
+                aria-hidden
+              />
+              <span>{line}</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   )
 }

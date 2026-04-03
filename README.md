@@ -18,6 +18,7 @@ FlowFi is a **financial intelligence platform** built for clarity, not noise. Us
 - **Decision Engine** — **Affordability-style** analysis from income, spending, and a purchase amount.
 - **Rent vs Buy** — Simple rent totals vs. a stylized purchase-cost estimate over your planned horizon.
 - **Tax Estimator** — Illustrative **Indian slab** model with **per-slab breakdown** (educational only).
+- **Credit Score Simulator** — **Toy weighted model** from payment history, utilization, age, and mix (not FICO/Vantage/bureau logic).
 - **CSV transaction import** — Upload, **preview**, and batch-insert rows (`date`, `description`, `amount`) into `transactions`.
 
 ---
@@ -38,7 +39,7 @@ FlowFi is a **financial intelligence platform** built for clarity, not noise. Us
 
 - **Frontend:** Next.js client UI with route groups for the **app shell** (`/dashboard`, `/tools/*`) and **auth** pages (`/login`, `/signup`). Data flows through the Supabase JS client and React hooks/context where appropriate.
 - **Backend:** Supabase hosts **Postgres**, **Auth**, and API access from the browser using the **anon** key. **Row Level Security (RLS)** is assumed on `transactions` (and related tables) so each user only reads/writes **their own rows**.
-- **Modular tools:** Financial utilities live under **`/tools`** (e.g. tax, rent vs buy, import)—each route is a focused surface so new tools can ship without rewiring the core dashboard.
+- **Modular tools:** Financial utilities live under **`/tools`** (e.g. tax, rent vs buy, decision engine, credit score simulator, CSV import)—each route is a focused surface so new tools can ship without rewiring the core dashboard.
 
 ---
 
@@ -63,7 +64,7 @@ FlowFi is a **financial intelligence platform** built for clarity, not noise. Us
 | ---- | ------- |
 | Dashboard & analytics | *Coming soon — add image* |
 | Tools hub | *Coming soon — add image* |
-| Tax / import flows | *Coming soon — add image* |
+| Tax / import / credit sim | *Coming soon — add image* |
 
 ---
 
@@ -119,7 +120,7 @@ Use the **Project URL** and **anon public** key from the Supabase dashboard (**S
 
 ## Disclaimer
 
-FlowFi is **not financial, tax, or legal advice**. All numbers, calculators, and tax outputs are **approximate, simplified, or illustrative**—including the tax slabs and import mapping—**inappropriate substitutes** for a qualified professional or official filing rules. Use at your own discretion.
+FlowFi is **not financial, tax, or legal advice**. All numbers, calculators, and tax outputs are **approximate, simplified, or illustrative**—including the tax slabs, credit score **simulator** (not bureau-grade), and import mapping—**inappropriate substitutes** for a qualified professional, lender, or official filing rules. Use at your own discretion.
 
 ---
 

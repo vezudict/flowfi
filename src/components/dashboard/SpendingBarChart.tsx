@@ -48,13 +48,13 @@ export function SpendingBarChart({ data, title }: SpendingBarChartProps) {
             <CartesianGrid
               strokeDasharray="3 3"
               vertical={false}
-              stroke="#e4e4e7"
+              stroke="var(--chart-grid)"
             />
             <XAxis
               dataKey="label"
               tick={axisStyle}
               tickLine={false}
-              axisLine={{ stroke: '#e4e4e7' }}
+              axisLine={{ stroke: 'var(--chart-grid)' }}
               interval="preserveStartEnd"
             />
             <YAxis

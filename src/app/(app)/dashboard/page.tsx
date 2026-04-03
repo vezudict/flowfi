@@ -2,7 +2,6 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import Link from 'next/link'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
@@ -19,8 +18,7 @@ import {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading: authLoading, signOut } = useAuth()
-  const [signingOut, setSigningOut] = useState(false)
+  const { user, loading: authLoading } = useAuth()
   const [error, setError] = useState<string | null>(null)
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -67,19 +65,6 @@ export default function DashboardPage() {
     if (!user) return
     void loadTransactions()
   }, [user, loadTransactions])
-
-  async function handleSignOut() {
-    setError(null)
-    setSigningOut(true)
-    try {
-      await signOut()
-      router.replace('/login')
-    } catch {
-      setError('Could not sign out. Try again.')
-    } finally {
-      setSigningOut(false)
-    }
-  }
 
   async function handleAddTransaction(e: React.FormEvent) {
     e.preventDefault()
@@ -223,7 +208,7 @@ export default function DashboardPage() {
                   required
                   value={amount}
                   onChange={(e) => setAmount(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-100/10"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20"
                   placeholder="0.00"
                 />
               </div>
@@ -240,7 +225,7 @@ export default function DashboardPage() {
                   required
                   value={category}
                   onChange={(e) => setCategory(e.target.value)}
-                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-100/10"
+                  className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20"
                   placeholder="Groceries"
                 />
               </div>
@@ -256,7 +241,7 @@ export default function DashboardPage() {
                   rows={2}
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  className="w-full resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-100/10"
+                  className="w-full resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20"
                   placeholder="Optional note"
                 />
               </div>
@@ -264,7 +249,7 @@ export default function DashboardPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              className="rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               {submitting ? 'Adding…' : 'Add transaction'}
             </button>
@@ -312,22 +297,6 @@ export default function DashboardPage() {
           )}
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-zinc-100 px-6 py-5 dark:border-zinc-800 sm:flex-row sm:justify-end">
-          <button
-            type="button"
-            onClick={handleSignOut}
-            disabled={signingOut}
-            className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100 dark:hover:bg-zinc-800"
-          >
-            {signingOut ? 'Signing out…' : 'Sign out'}
-          </button>
-          <Link
-            href="/"
-            className="inline-flex items-center justify-center rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white hover:opacity-90 dark:bg-zinc-100 dark:text-zinc-900"
-          >
-            Home
-          </Link>
-        </div>
       </div>
     </div>
   )

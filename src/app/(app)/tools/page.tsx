@@ -57,7 +57,7 @@ export default function ToolsPage() {
               </p>
               <Link
                 href={tool.href}
-                className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 dark:bg-zinc-100 dark:text-zinc-900 sm:w-auto sm:self-start sm:px-5"
+                className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 sm:w-auto sm:self-start sm:px-5"
               >
                 Open Tool
               </Link>
