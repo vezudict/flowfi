@@ -1,12 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Settings } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
 import { BrandLogoLink } from './BrandLogoLink'
-import { ThemeToggle } from './ThemeToggle'
 
 const APP_LINKS = [
   { href: '/dashboard', label: 'Dashboard' },
@@ -18,6 +17,10 @@ function linkActive(pathname: string, href: string) {
     return pathname === '/tools' || pathname.startsWith('/tools/')
   }
   return pathname === href
+}
+
+function settingsActive(pathname: string) {
+  return pathname === '/settings'
 }
 
 function navLinkClass(active: boolean) {
@@ -86,23 +89,35 @@ export function AppNavbar() {
           </nav>
 
           <div className="flex shrink-0 items-center justify-end gap-1 sm:gap-2 lg:justify-self-end">
-            <ThemeToggle />
             {user ? (
-              <button
-                type="button"
-                onClick={() => void handleSignOut()}
-                disabled={signingOut}
-                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-all duration-150 ease-in-out hover:text-zinc-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
-              >
-                {signingOut ? (
-                  <>
-                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
-                    <span className="hidden sm:inline">Signing out</span>
-                  </>
-                ) : (
-                  'Sign out'
-                )}
-              </button>
+              <>
+                <Link
+                  href="/settings"
+                  aria-label="Settings"
+                  className={`rounded-lg p-2 transition-[transform,opacity,color] duration-150 hover:opacity-80 active:scale-[0.97] ${
+                    settingsActive(pathname)
+                      ? 'text-indigo-600 dark:text-indigo-400'
+                      : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
+                  }`}
+                >
+                  <Settings className="h-5 w-5" aria-hidden />
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => void handleSignOut()}
+                  disabled={signingOut}
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-all duration-150 ease-in-out hover:text-zinc-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
+                >
+                  {signingOut ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                      <span className="hidden sm:inline">Signing out</span>
+                    </>
+                  ) : (
+                    'Sign out'
+                  )}
+                </button>
+              </>
             ) : null}
           </div>
         </div>
@@ -141,6 +156,16 @@ export function AppNavbar() {
               </Link>
             )
           })}
+          {user ? (
+            <Link
+              href="/settings"
+              onClick={() => setMobileOpen(false)}
+              className={navLinkClass(settingsActive(pathname))}
+              aria-current={settingsActive(pathname) ? 'page' : undefined}
+            >
+              Settings
+            </Link>
+          ) : null}
         </nav>
       </aside>
     </>

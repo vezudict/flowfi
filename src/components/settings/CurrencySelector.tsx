@@ -11,7 +11,12 @@ import {
 import { formatCurrency } from '@/lib/format-currency'
 import { toast } from 'sonner'
 
-export function CurrencySelector() {
+type CurrencySelectorProps = {
+  /** When false, omit the built-in section title (e.g. settings sidebar supplies the heading). */
+  showHeading?: boolean
+}
+
+export function CurrencySelector({ showHeading = true }: CurrencySelectorProps) {
   const { currency: selected, setCurrency } = useCurrency()
   const [pending, setPending] = useState<SupportedCurrencyCode | null>(null)
 
@@ -33,13 +38,21 @@ export function CurrencySelector() {
     <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/40">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent dark:from-indigo-400/[0.04]" />
       <div className="relative">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Currency
-        </h2>
-        <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Amounts across your dashboard and tools update as you choose. Saved to your profile when
-          signed in; otherwise kept on this device.
-        </p>
+        {showHeading ? (
+          <>
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+              Currency
+            </h2>
+            <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
+              Amounts across your dashboard and tools update as you choose. Saved to your profile
+              when signed in; otherwise kept on this device.
+            </p>
+          </>
+        ) : (
+          <p className="text-xs text-zinc-500/80 dark:text-zinc-400/80">
+            Saved to your profile when signed in; otherwise kept on this device.
+          </p>
+        )}
 
         <div className="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4">
           {SUPPORTED_CURRENCIES.map((c: CurrencyDefinition) => {

@@ -3,7 +3,7 @@
 ## Dark Mode
 
 - **Strategy:** Tailwind v4 class-based (`@variant dark (&:where(.dark, .dark *))`). The `.dark` class on `<html>` activates all `dark:` utilities and CSS variable overrides.
-- **Toggle:** `ThemeToggle` component (`src/components/layout/ThemeToggle.tsx`) — reads/writes `localStorage` key `theme` (`'dark'` | `'light'`), falls back to system preference.
+- **Preference:** Settings → Appearance (`ThemePreferenceSection`) and `src/lib/theme-preference.ts` — `localStorage` key `theme` is `'dark'` | `'light'` | `'system'` (default); `system` follows `prefers-color-scheme` and listens for changes.
 - **FOUC prevention:** Inline script in `src/app/layout.tsx` `<head>` runs before first paint. DO NOT remove it.
 - **CSS vars:** `.dark { --background, --foreground, --chart-grid }` in `globals.css`.
 
