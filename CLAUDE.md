@@ -39,6 +39,7 @@
 | `/tools/rent-vs-buy` | Rent vs Buy Calculator |
 | `/tools/import-transactions` | CSV Import |
 | `/settings` | Settings (appearance, currency) |
+| `/guide` | In-app guide / learn section — public, uses LandingNavbar + Footer |
 
 ## Architecture
 
@@ -49,6 +50,6 @@
 - **App layout:** `src/app/(app)/layout.tsx` renders `AppShell`
 - **AppShell:** `src/components/layout/AppShell.tsx` — client shell; renders sticky `AppNavbar` + page `<main>` (no sidebar inset).
 - **AppNavbar:** `src/components/layout/AppNavbar.tsx` — logo links to `/`; centered Dashboard & Tools with active state; settings icon → `/settings`; sign-out on the right. Mobile: hamburger opens left drawer (Dashboard, Tools, Settings) with backdrop; sign-out stays visible in the header.
-- **LandingNavbar:** `src/components/layout/LandingNavbar.tsx` — used on `/` only (composed in `src/app/page.tsx`). Logo → `/`; Features & Tools scroll to `#features` / `#tools`; primary CTA → `/dashboard` — label **Get Started** when signed out, **Go to Dashboard** when signed in; mobile keeps that CTA visible next to the menu button.
+- **LandingNavbar:** `src/components/layout/LandingNavbar.tsx` — used on `/` and `/guide`. Nav links: Features (scroll), Tools (scroll), Guide (`/guide`). Primary CTA → `/dashboard` — label **Get Started** when signed out, **Go to Dashboard** when signed in; mobile keeps that CTA visible next to the menu button.
 - **Brand wordmark:** `BrandLogoLink` (`src/components/layout/BrandLogoLink.tsx`) — **FlowFi** always links to `/` (landing). Use in navbars, footer, and any sidebar/mock sidebar so the target never drifts.
 - **Mobile drawer (app):** in `AppNavbar`; `translate-x-0`/`-translate-x-full` with `cubic-bezier(0.32, 0.72, 0, 1)` (280ms)

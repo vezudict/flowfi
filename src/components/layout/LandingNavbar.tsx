@@ -69,6 +69,13 @@ export function LandingNavbar() {
             >
               Tools
             </Link>
+            <Link
+              href="/guide"
+              onClick={() => setMobileOpen(false)}
+              className="text-sm font-medium text-zinc-400 transition-colors hover:text-zinc-100"
+            >
+              Guide
+            </Link>
           </nav>
 
           <div className="flex items-center gap-2">
@@ -124,6 +131,15 @@ export function LandingNavbar() {
               className="block rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800/80"
             >
               Tools
+            </Link>
+          </li>
+          <li>
+            <Link
+              href="/guide"
+              onClick={() => setMobileOpen(false)}
+              className="block rounded-lg px-3 py-2.5 text-sm font-medium text-zinc-300 hover:bg-zinc-800/80"
+            >
+              Guide
             </Link>
           </li>
         </ul>
