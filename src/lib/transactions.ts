@@ -31,6 +31,30 @@ export async function insertTransaction(payload: {
   })
 }
 
+export async function updateTransaction(payload: {
+  id: string
+  userId: string
+  amount: number
+  category: string
+  description: string | null
+}) {
+  return supabase
+    .from('transactions')
+    .update({
+      amount: payload.amount,
+      category: payload.category,
+      description: payload.description,
+    })
+    .eq('id', payload.id)
+    .eq('user_id', payload.userId)
+    .select('id, user_id, amount, category, description, created_at')
+    .single()
+}
+
+export async function deleteTransaction(id: string, userId: string) {
+  return supabase.from('transactions').delete().eq('id', id).eq('user_id', userId)
+}
+
 export type ImportedTransactionRow = {
   amount: number
   category: string

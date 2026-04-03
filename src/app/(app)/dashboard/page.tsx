@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Receipt } from 'lucide-react'
+import { Loader2, Pencil, Receipt, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
@@ -9,6 +9,7 @@ import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
+import { TransactionEditModal } from '@/components/dashboard/TransactionEditModal'
 import { useAuth } from '@/contexts/auth-context'
 import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
@@ -17,6 +18,7 @@ import { formatAmountPlain, formatCurrency } from '@/lib/format-currency'
 import { buildSpendingInsights } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
 import {
+  deleteTransaction,
   fetchTransactionsForUser,
   insertTransaction,
   type Transaction,
@@ -60,6 +62,8 @@ export default function DashboardPage() {
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
   const [monthlyBudget, setMonthlyBudget] = useState<number | null>(null)
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -142,6 +146,32 @@ export default function DashboardPage() {
     if (!user) return
     void loadDashboard()
   }, [user, loadDashboard])
+
+  function handleTransactionSaved(updated: Transaction) {
+    setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+  }
+
+  async function handleDeleteTransaction(tx: Transaction) {
+    if (!user) return
+    if (
+      !confirm(
+        'Delete this transaction? This cannot be undone.',
+      )
+    ) {
+      return
+    }
+    setListError(null)
+    setDeletingId(tx.id)
+    const { error: delError } = await deleteTransaction(tx.id, user.id)
+    setDeletingId(null)
+    if (delError) {
+      console.error('[dashboard] delete transaction:', delError)
+      setListError(delError.message)
+      return
+    }
+    setTransactions((prev) => prev.filter((t) => t.id !== tx.id))
+    if (editingTransaction?.id === tx.id) setEditingTransaction(null)
+  }
 
   async function handleSaveMonthlyBudget(amount: number | null) {
     if (!user) return { error: 'Not signed in' }
@@ -432,7 +462,7 @@ export default function DashboardPage() {
               {transactions.map((tx) => (
                 <li
                   key={tx.id}
-                  className="flex flex-col gap-1 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
+                  className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="font-semibold text-zinc-900 dark:text-zinc-50">
@@ -447,15 +477,46 @@ export default function DashboardPage() {
                       {new Date(tx.created_at).toLocaleString()}
                     </p>
                   </div>
-                  <p className="shrink-0 text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100 sm:text-right">
-                    {formatAmountPlain(normalizeAmount(tx.amount))}
-                  </p>
+                  <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
+                    <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                      {formatAmountPlain(normalizeAmount(tx.amount))}
+                    </p>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => setEditingTransaction(tx)}
+                        className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+                        aria-label={`Edit transaction ${tx.category}`}
+                      >
+                        <Pencil className="h-4 w-4" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleDeleteTransaction(tx)}
+                        disabled={deletingId === tx.id}
+                        className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                        aria-label={`Delete transaction ${tx.category}`}
+                      >
+                        {deletingId === tx.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+                        ) : (
+                          <Trash2 className="h-4 w-4" aria-hidden />
+                        )}
+                      </button>
+                    </div>
+                  </div>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      <TransactionEditModal
+        transaction={editingTransaction}
+        onClose={() => setEditingTransaction(null)}
+        onSaved={handleTransactionSaved}
+      />
     </div>
   )
 }
