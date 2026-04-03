@@ -7,8 +7,12 @@
   --background: #ffffff;
   --foreground: #171717;
   --chart-grid: #e4e4e7;
-  --muted-foreground: #71717a;
+  /* Muted body / secondary text — slightly softer for hierarchy */
+  --muted-foreground: rgb(113 113 122 / 0.85);
   --muted: #f4f4f5;
+  /* Accent — indigo; use via Tailwind indigo-* in components */
+  --accent: #4f46e5;
+  --accent-foreground: #ffffff;
 
   /* shadcn chart palette — zinc-based, maps to recharts fill vars */
   --chart-1: 240 5.9% 10%;
@@ -30,6 +34,9 @@
   --background: #0a0a0a;
   --foreground: #ededed;
   --chart-grid: #27272a;
+  --muted-foreground: rgb(161 161 170 / 0.82);
+  --accent: #6366f1;
+  --accent-foreground: #ffffff;
 
   --chart-1: 240 5% 96%;
   --chart-2: 240 5% 83%;

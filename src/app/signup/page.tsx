@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { useAuth } from '@/contexts/auth-context'
+import { Loader2 } from 'lucide-react'
 import { ensureUserProfile } from '@/lib/ensure-profile'
 import { supabase } from '@/lib/supabase'
 
@@ -59,8 +60,14 @@ export default function SignupPage() {
 
   if (authLoading) {
     return (
-      <div className="flex min-h-full flex-1 items-center justify-center">
-        <p className="text-sm text-zinc-500">Loading…</p>
+      <div className="mx-auto flex min-h-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
+        <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950 sm:p-8">
+          <div className="mx-auto h-8 w-56 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
+          <div className="mx-auto h-4 w-full max-w-xs animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-900" />
+          <div className="h-10 w-full animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" />
+          <div className="h-10 w-full animate-pulse rounded-lg bg-zinc-100 dark:bg-zinc-900" />
+          <div className="h-10 w-full animate-pulse rounded-lg bg-indigo-100/80 dark:bg-indigo-950/50" />
+        </div>
       </div>
     )
   }
@@ -78,7 +85,7 @@ export default function SignupPage() {
           Already have an account?{' '}
           <Link
             href="/login"
-            className="font-medium text-zinc-900 underline-offset-4 hover:underline dark:text-zinc-100"
+            className="font-medium text-indigo-600 underline-offset-4 transition-colors duration-150 hover:text-indigo-500 hover:underline dark:text-indigo-400 dark:hover:text-indigo-300"
           >
             Sign in
           </Link>
@@ -116,7 +123,7 @@ export default function SignupPage() {
             required
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-100/10"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 ease-in-out placeholder:text-zinc-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20"
             placeholder="you@example.com"
           />
         </div>
@@ -135,16 +142,23 @@ export default function SignupPage() {
             minLength={6}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none ring-zinc-400 placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-300 dark:focus:ring-zinc-100/10"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 ease-in-out placeholder:text-zinc-400 focus:border-indigo-600 focus:ring-2 focus:ring-indigo-600/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/20"
             placeholder="At least 6 characters"
           />
         </div>
         <button
           type="submit"
           disabled={loading}
-          className="w-full rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 py-2.5 text-sm font-medium text-white transition-all duration-150 ease-in-out hover:bg-indigo-500 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
         >
-          {loading ? 'Creating account…' : 'Sign up'}
+          {loading ? (
+            <>
+              <Loader2 className="size-4 shrink-0 animate-spin" aria-hidden />
+              <span>Creating account…</span>
+            </>
+          ) : (
+            'Sign up'
+          )}
         </button>
       </form>
     </AuthShell>

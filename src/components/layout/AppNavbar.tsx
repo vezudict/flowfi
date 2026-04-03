@@ -1,6 +1,7 @@
 'use client'
 
 import Link from 'next/link'
+import { Loader2 } from 'lucide-react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useState } from 'react'
 import { useAuth } from '@/contexts/auth-context'
@@ -20,9 +21,9 @@ function linkActive(pathname: string, href: string) {
 }
 
 function navLinkClass(active: boolean) {
-  return `rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+  return `rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-zinc-950 ${
     active
-      ? 'bg-zinc-200/80 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50'
+      ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-500/15 dark:text-indigo-100'
       : 'text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-900 dark:hover:text-zinc-100'
   }`
 }
@@ -60,7 +61,7 @@ export function AppNavbar() {
               {mobileOpen ? <IconClose /> : <IconMenu />}
             </button>
             <BrandLogoLink
-              className="text-sm font-semibold tracking-tight text-zinc-900 transition-colors hover:text-zinc-600 dark:text-zinc-50 dark:hover:text-zinc-300"
+              className="rounded-md text-sm font-semibold tracking-tight text-zinc-900 transition-colors hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-50 dark:hover:text-zinc-300"
               onClick={() => setMobileOpen(false)}
             />
           </div>
@@ -88,8 +89,10 @@ export function AppNavbar() {
             <Link
               href="/settings"
               onClick={() => setMobileOpen(false)}
-              className={`rounded-lg p-2 text-zinc-500 transition-[transform,color,background-color] duration-150 hover:bg-zinc-200/80 hover:text-zinc-900 active:scale-[0.97] dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 ${
-                linkActive(pathname, '/settings') ? 'bg-zinc-200/80 text-zinc-900 dark:bg-zinc-800 dark:text-zinc-50' : ''
+              className={`rounded-lg p-2 text-zinc-500 transition-all duration-150 ease-in-out hover:bg-zinc-200/80 hover:text-zinc-900 active:scale-[0.97] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100 ${
+                linkActive(pathname, '/settings')
+                  ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-500/15 dark:text-indigo-100'
+                  : ''
               }`}
               aria-label="Settings"
             >
@@ -101,9 +104,16 @@ export function AppNavbar() {
                 type="button"
                 onClick={() => void handleSignOut()}
                 disabled={signingOut}
-                className="rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-[transform,color] duration-150 hover:text-zinc-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
+                className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-all duration-150 ease-in-out hover:text-zinc-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
               >
-                {signingOut ? '…' : 'Sign out'}
+                {signingOut ? (
+                  <>
+                    <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin" aria-hidden />
+                    <span className="hidden sm:inline">Signing out</span>
+                  </>
+                ) : (
+                  'Sign out'
+                )}
               </button>
             ) : null}
           </div>

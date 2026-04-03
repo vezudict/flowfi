@@ -1,5 +1,6 @@
 'use client'
 
+import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import {
@@ -103,7 +104,10 @@ export function ImportTransactionsClient() {
 
   if (authLoading) {
     return (
-      <p className="text-sm text-zinc-500 dark:text-zinc-400">Loading…</p>
+      <div className="mt-8 space-y-3">
+        <div className="h-8 w-48 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-32 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+      </div>
     )
   }
 
@@ -114,7 +118,7 @@ export function ImportTransactionsClient() {
         <button
           type="button"
           onClick={() => router.push('/login')}
-          className="mt-3 rounded-lg bg-zinc-900 px-4 py-2 text-sm font-medium text-white dark:bg-zinc-100 dark:text-zinc-900"
+          className="mt-3 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
         >
           Sign in
         </button>
@@ -124,11 +128,13 @@ export function ImportTransactionsClient() {
 
   return (
     <div className="mt-8 space-y-8">
-      <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+      <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
+        <div className="relative">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
           Upload CSV
         </h2>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
           Header row must include columns named{' '}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">
             date
@@ -144,7 +150,7 @@ export function ImportTransactionsClient() {
           (extra columns are ignored).
         </p>
 
-        <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-6 py-12 transition-colors hover:border-zinc-400 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-zinc-600">
+        <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-6 py-12 transition-all duration-150 ease-in-out hover:border-indigo-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-500/40">
           <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
             {busy && !preview ? 'Reading file…' : 'Choose CSV file'}
           </span>
@@ -192,16 +198,18 @@ export function ImportTransactionsClient() {
             {importError}
           </p>
         ) : null}
+        </div>
       </section>
 
       {preview ? (
-        <section className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-          <div className="flex flex-wrap items-end justify-between gap-4">
+        <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
+          <div className="relative flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
                 Preview
               </h2>
-              <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
                 {preview.rows.length} row
                 {preview.rows.length === 1 ? '' : 's'} ·{' '}
                 <span className="text-emerald-700 dark:text-emerald-400">
@@ -222,13 +230,20 @@ export function ImportTransactionsClient() {
               type="button"
               disabled={busy || validCount === 0}
               onClick={onImport}
-              className="rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
-              {busy ? 'Importing…' : `Import ${validCount} transaction${validCount === 1 ? '' : 's'}`}
+              {busy ? (
+                <>
+                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                  Importing…
+                </>
+              ) : (
+                `Import ${validCount} transaction${validCount === 1 ? '' : 's'}`
+              )}
             </button>
           </div>
 
-          <div className="mt-4 max-h-[420px] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+          <div className="relative z-10 mt-4 max-h-[420px] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
             <table className="w-full min-w-[640px] text-left text-sm">
               <thead className="sticky top-0 bg-zinc-100 dark:bg-zinc-900">
                 <tr>

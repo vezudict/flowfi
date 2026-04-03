@@ -1,17 +1,20 @@
 export default function SettingsPage() {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-      <header>
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
+    <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <header className="space-y-2">
+        <h1 className="text-3xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Settings
         </h1>
-        <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
+        <p className="text-sm text-zinc-500/80 dark:text-zinc-400/80">
           Account preferences and configuration.
         </p>
       </header>
 
-      <div className="mt-8 rounded-2xl border border-dashed border-zinc-300 bg-white p-10 text-center text-sm text-zinc-400 shadow-sm dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-500">
-        Settings — coming soon.
+      <div className="relative overflow-hidden rounded-2xl border border-dashed border-zinc-300 bg-gradient-to-br from-white via-white to-zinc-50/80 p-8 text-center shadow-sm dark:border-zinc-700 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50 sm:p-10">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
+        <p className="relative text-sm text-zinc-500/90 dark:text-zinc-400/85">
+          Settings — coming soon.
+        </p>
       </div>
     </div>
   )

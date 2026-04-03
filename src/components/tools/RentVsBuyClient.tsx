@@ -20,7 +20,7 @@ export function RentVsBuyClient() {
   const [result, setResult] = useState<RentVsBuyResult | null>(null)
 
   const fieldClass =
-    'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-colors duration-150 focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20'
+    'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
 
   function onSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -69,12 +69,14 @@ export function RentVsBuyClient() {
     <div className="mt-8 space-y-8">
       <form
         onSubmit={onSubmit}
-        className="rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950"
+        className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50"
       >
-        <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
+        <div className="relative">
+        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
           Assumptions
         </h2>
-        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
           Total rent is monthly rent × 12 × years. Buying uses price × 1.2 as a
           simple all-in estimate (fees, interest cushion—not a mortgage quote).
         </p>
@@ -153,10 +155,11 @@ export function RentVsBuyClient() {
 
         <button
           type="submit"
-          className="mt-6 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+          className="mt-6 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
         >
           Compare
         </button>
+        </div>
       </form>
 
       <div aria-live="polite">
