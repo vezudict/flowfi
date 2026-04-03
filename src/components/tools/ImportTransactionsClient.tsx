@@ -4,7 +4,6 @@ import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
 import {
-  IMPORT_CATEGORY,
   parseTransactionCsvFile,
   type CsvTransactionsPreview,
   type ParseTransactionCsvResult,
@@ -72,6 +71,7 @@ export function ImportTransactionsClient() {
       .filter((r) => r.isValid && r.createdAtIso && r.amount !== null)
       .map((r) => ({
         amount: r.amount as number,
+        category: r.resolvedCategory,
         description: r.description,
         createdAt: r.createdAtIso as string,
       }))
@@ -82,11 +82,7 @@ export function ImportTransactionsClient() {
     }
 
     setBusy(true)
-    const { error } = await insertImportedTransactions(
-      user.id,
-      IMPORT_CATEGORY,
-      toInsert,
-    )
+    const { error } = await insertImportedTransactions(user.id, toInsert)
     setBusy(false)
 
     if (error) {
@@ -135,19 +131,13 @@ export function ImportTransactionsClient() {
           Upload CSV
         </h2>
         <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
-          Header row must include columns named{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">
-            date
-          </span>
-          ,{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">
-            description
-          </span>
-          , and{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">
-            amount
-          </span>{' '}
-          (extra columns are ignored).
+          Header row must include{' '}
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">date</span>,{' '}
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">description</span>, and{' '}
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">amount</span>.
+          Optional <span className="font-mono text-zinc-700 dark:text-zinc-300">category</span> is
+          used when valid; otherwise categories are inferred from the description or set to{' '}
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">Other</span>.
         </p>
 
         <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-6 py-12 transition-all duration-150 ease-in-out hover:border-indigo-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-500/40">
@@ -244,12 +234,13 @@ export function ImportTransactionsClient() {
           </div>
 
           <div className="relative z-10 mt-4 max-h-[420px] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full min-w-[640px] text-left text-sm">
+            <table className="w-full min-w-[720px] text-left text-sm">
               <thead className="sticky top-0 bg-zinc-100 dark:bg-zinc-900">
                 <tr>
                   <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">#</th>
                   <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Date</th>
                   <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Description</th>
+                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Category</th>
                   <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Amount</th>
                   <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Status</th>
                 </tr>
@@ -272,6 +263,9 @@ export function ImportTransactionsClient() {
                     </td>
                     <td className="max-w-[220px] truncate px-3 py-2 text-zinc-800 dark:text-zinc-200" title={row.descriptionRaw}>
                       {row.descriptionRaw || '—'}
+                    </td>
+                    <td className="max-w-[120px] truncate px-3 py-2 text-zinc-800 dark:text-zinc-200" title={row.resolvedCategory}>
+                      {row.resolvedCategory}
                     </td>
                     <td className="px-3 py-2 font-mono tabular-nums text-zinc-800 dark:text-zinc-200">
                       {row.amount !== null

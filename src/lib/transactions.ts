@@ -33,13 +33,13 @@ export async function insertTransaction(payload: {
 
 export type ImportedTransactionRow = {
   amount: number
+  category: string
   description: string | null
   createdAt: string
 }
 
 export async function insertImportedTransactions(
   userId: string,
-  category: string,
   rows: ImportedTransactionRow[],
 ) {
   if (rows.length === 0) {
@@ -48,7 +48,7 @@ export async function insertImportedTransactions(
   const payload = rows.map((r) => ({
     user_id: userId,
     amount: r.amount,
-    category,
+    category: r.category,
     description: r.description,
     created_at: r.createdAt,
   }))

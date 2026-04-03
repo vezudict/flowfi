@@ -1,3 +1,4 @@
+import { categoryForAnalytics } from '@/lib/category-suggestion'
 import type { Transaction } from '@/lib/transactions'
 
 export function normalizeAmount(raw: unknown): number {
@@ -59,7 +60,7 @@ export function computeAnalytics(
 
   const byCategory = new Map<string, number>()
   for (const tx of inMonth) {
-    const cat = tx.category.trim() || 'Other'
+    const cat = categoryForAnalytics(tx.category)
     const amt = Math.abs(normalizeAmount(tx.amount))
     byCategory.set(cat, (byCategory.get(cat) ?? 0) + amt)
   }

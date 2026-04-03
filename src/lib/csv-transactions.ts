@@ -1,6 +1,5 @@
 import Papa from 'papaparse'
-
-export const IMPORT_CATEGORY = 'Imported'
+import { resolveTransactionCategory } from '@/lib/category-suggestion'
 
 export type PreviewRow = {
   /** 1-based data row index in CSV (excluding header) */
@@ -8,9 +7,13 @@ export type PreviewRow = {
   dateRaw: string
   descriptionRaw: string
   amountRaw: string
+  /** Present when CSV has a `category` column */
+  categoryRaw: string
   createdAtIso: string | null
   amount: number | null
   description: string | null
+  /** Category that will be stored (CSV if valid, else keywords, else Other) */
+  resolvedCategory: string
   errors: string[]
   isValid: boolean
 }
@@ -80,10 +83,12 @@ function buildRow(
   dateKey: string,
   descKey: string,
   amountKey: string,
+  categoryKey: string | null,
 ): PreviewRow {
   const dateRaw = String(row[dateKey] ?? '').trim()
   const descriptionRaw = String(row[descKey] ?? '')
   const amountRaw = String(row[amountKey] ?? '').trim()
+  const categoryRaw = categoryKey ? String(row[categoryKey] ?? '').trim() : ''
 
   const errors: string[] = []
   const { iso: createdAtIso, error: dateErr } = parseDateRaw(dateRaw)
@@ -95,14 +100,21 @@ function buildRow(
   const description = descriptionRaw.trim()
   const descriptionOut = description.length ? description : null
 
+  const resolvedCategory = resolveTransactionCategory({
+    description: descriptionOut,
+    csvCategory: categoryRaw.length ? categoryRaw : null,
+  })
+
   return {
     rowNumber,
     dateRaw,
     descriptionRaw,
     amountRaw,
+    categoryRaw,
     createdAtIso,
     amount,
     description: descriptionOut,
+    resolvedCategory,
     errors,
     isValid: errors.length === 0,
   }
@@ -127,6 +139,7 @@ export function parseTransactionCsvText(csvText: string): ParseTransactionCsvRes
   const dateKey = resolveColumnKey(fields, 'date')
   const descKey = resolveColumnKey(fields, 'description')
   const amountKey = resolveColumnKey(fields, 'amount')
+  const categoryKey = resolveColumnKey(fields, 'category')
 
   const missing: string[] = []
   if (!dateKey) missing.push('date')
@@ -143,7 +156,7 @@ export function parseTransactionCsvText(csvText: string): ParseTransactionCsvRes
 
   const data = parsed.data.filter((r) => r && Object.keys(r).length > 0)
   const rows: PreviewRow[] = data.map((row, i) =>
-    buildRow(i + 1, row, dateKey!, descKey!, amountKey!),
+    buildRow(i + 1, row, dateKey!, descKey!, amountKey!, categoryKey),
   )
 
   return {

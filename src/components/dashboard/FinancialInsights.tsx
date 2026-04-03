@@ -1,11 +1,12 @@
 import { Lightbulb } from 'lucide-react'
 import Link from 'next/link'
+import type { SpendingInsight } from '@/lib/spending-insights'
 
 type FinancialInsightsProps = {
-  lines: string[]
+  insights: SpendingInsight[]
 }
 
-export function FinancialInsights({ lines }: FinancialInsightsProps) {
+export function FinancialInsights({ insights }: FinancialInsightsProps) {
   return (
     <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/40 dark:hover:shadow-zinc-950/80">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent dark:from-indigo-400/[0.04]" />
@@ -14,9 +15,9 @@ export function FinancialInsights({ lines }: FinancialInsightsProps) {
           Financial insights
         </h2>
         <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Based on your logged transactions (this month vs last month).
+          Pulled from your transactions: top category, month-over-month change, and unusual spikes.
         </p>
-        {lines.length === 0 ? (
+        {insights.length === 0 ? (
           <div className="mx-auto mt-6 flex max-w-sm flex-col items-center justify-center px-4 py-8 text-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
               <Lightbulb className="h-5 w-5" aria-hidden />
@@ -25,8 +26,8 @@ export function FinancialInsights({ lines }: FinancialInsightsProps) {
               No insights yet
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500/90 dark:text-zinc-400/85">
-              Add a few transactions to see spending trends, daily averages, and
-              month-over-month comparisons.
+              Add a few transactions to see spending trends, category comparisons, day-level spikes, and
+              daily averages.
             </p>
             <Link
               href="#add-transaction"
@@ -36,14 +37,12 @@ export function FinancialInsights({ lines }: FinancialInsightsProps) {
             </Link>
           </div>
         ) : (
-          <ul className="mt-6 space-y-3 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
-            {lines.map((line, i) => (
-              <li key={i} className="flex gap-2">
-                <span
-                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500/70 dark:bg-indigo-400/80"
-                  aria-hidden
-                />
-                <span>{line}</span>
+          <ul className="mt-6 space-y-3" role="list">
+            {insights.map((insight) => (
+              <li key={insight.id}>
+                <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300">
+                  {insight.text}
+                </div>
               </li>
             ))}
           </ul>

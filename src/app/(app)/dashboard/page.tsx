@@ -91,7 +91,7 @@ export default function DashboardPage() {
     [transactions],
   )
 
-  const insightLines = useMemo(
+  const spendingInsights = useMemo(
     () => buildSpendingInsights(transactions),
     [transactions],
   )
@@ -221,7 +221,7 @@ export default function DashboardPage() {
       {listLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
-        <FinancialInsights lines={insightLines} />
+        <FinancialInsights insights={spendingInsights} />
       )}
 
       {listLoading ? (

@@ -9,12 +9,12 @@ export default function ImportTransactionsPage() {
         Import transactions
       </h1>
       <p className="max-w-prose text-sm leading-relaxed text-zinc-600/85 dark:text-zinc-400/85">
-        Upload a CSV with columns for date, description, and amount. Review the
-        preview, then import valid rows into your account (category set to{' '}
-        <span className="font-mono text-zinc-800 dark:text-zinc-200">
-          Imported
-        </span>
-        ).
+        Upload a CSV with <span className="font-mono text-zinc-800 dark:text-zinc-200">date</span>,{' '}
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">description</span>, and{' '}
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">amount</span>. Categories are
+        inferred from the description (e.g. Swiggy → Food), or taken from an optional{' '}
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">category</span> column when valid;
+        otherwise they default to Other. Review the preview, then import.
       </p>
       <ImportTransactionsClient />
     </div>
