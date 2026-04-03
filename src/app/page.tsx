@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { Features } from '@/components/landing/Features'
 import { Hero } from '@/components/landing/Hero'
 import { useAuth } from '@/contexts/auth-context'
 
@@ -25,5 +26,10 @@ export default function Home() {
 
   if (user) return null
 
-  return <Hero />
+  return (
+    <>
+      <Hero />
+      <Features />
+    </>
+  )
 }
