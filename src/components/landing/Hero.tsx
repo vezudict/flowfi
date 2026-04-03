@@ -130,28 +130,7 @@ export function Hero() {
   }
 
   return (
-    <div className="flex min-h-screen flex-col bg-zinc-950 font-sans text-white">
-      {/* ── nav ─────────────────────────────────────────── */}
-      <nav className="flex h-14 items-center justify-between px-6 sm:px-10">
-        <span className="text-sm font-semibold tracking-tight text-zinc-50">
-          Flowfi
-        </span>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className="rounded-lg px-4 py-2 text-sm font-medium text-zinc-400 transition-colors hover:bg-zinc-800 hover:text-zinc-50"
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/signup"
-            className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-zinc-900 transition-all duration-150 hover:bg-zinc-100 active:scale-95"
-          >
-            Get started
-          </Link>
-        </div>
-      </nav>
-
+    <div className="flex min-h-[calc(100dvh-3.5rem)] flex-col bg-zinc-950 font-sans text-white">
       {/* ── hero body ───────────────────────────────────── */}
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-16 px-6 py-16 sm:px-10 lg:flex-row lg:items-center lg:gap-24 lg:py-20">
         {/* left: text */}

@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ToolPageNav } from '@/components/tools/ToolPageNav'
 
 const tools = [
   {
@@ -36,7 +37,8 @@ const tools = [
 export default function ToolsPage() {
   return (
     <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
-      <header className="max-w-2xl">
+      <ToolPageNav showToolsIndex={false} />
+      <header className="mt-4 max-w-2xl">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Financial Tools
         </h1>

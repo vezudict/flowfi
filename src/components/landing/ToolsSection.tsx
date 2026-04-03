@@ -130,7 +130,7 @@ export function ToolsSection() {
   }
 
   return (
-    <section className="bg-zinc-950 pb-32 pt-4">
+    <section id="tools" className="scroll-mt-14 bg-zinc-950 pb-32 pt-4">
       <div className="mx-auto max-w-7xl px-6 sm:px-10">
         {/* divider */}
         <div className="mb-20 h-px w-full bg-gradient-to-r from-transparent via-zinc-800 to-transparent" />

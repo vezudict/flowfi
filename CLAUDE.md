@@ -43,10 +43,10 @@
 ## Architecture
 
 - **Auth:** Supabase auth via `AuthContext` (`src/contexts/auth-context.tsx`)
-- **Sign-out:** Lives in `Sidebar` (`src/components/layout/Sidebar.tsx`) — do not add it elsewhere
+- **Sign-out:** `AppNavbar` (`src/components/layout/AppNavbar.tsx`) — primary sign-out control in the global app header (keep a single obvious sign-out entry point).
 - **App layout:** `src/app/(app)/layout.tsx` renders `AppShell`
-- **AppShell:** `src/components/layout/AppShell.tsx` — client component managing mobile sidebar state; renders desktop `Sidebar` + mobile drawer + `AppNav` + page content
-- **Sidebar:** `src/components/layout/Sidebar.tsx` — desktop fixed sidebar (`lg:w-60`); exports `SidebarNav` (shared nav content) and `Sidebar` (desktop container). Nav items: Dashboard, Tools, Settings. Sign-out and ThemeToggle at bottom.
-- **AppNav:** `src/components/layout/AppNav.tsx` — mobile-only top bar (`lg:hidden`); hamburger + Flowfi logo + ThemeToggle. Accepts `onMenuClick` prop.
-- **Mobile drawer:** rendered in `AppShell`; uses `translate-x-0`/`-translate-x-full` CSS transition with `cubic-bezier(0.32, 0.72, 0, 1)` easing (iOS drawer curve, 280ms)
-- **Desktop content offset:** `lg:pl-60` on content wrapper in `AppShell` compensates for fixed sidebar
+- **AppShell:** `src/components/layout/AppShell.tsx` — client shell; renders sticky `AppNavbar` + page `<main>` (no sidebar inset).
+- **AppNavbar:** `src/components/layout/AppNavbar.tsx` — logo links to `/`; centered Dashboard & Tools with active state; settings icon → `/settings`; theme toggle + sign-out on the right. Mobile: hamburger opens left drawer (Dashboard, Tools, Settings) with backdrop; sign-out stays visible in the header.
+- **LandingNavbar:** `src/components/layout/LandingNavbar.tsx` — used on `/` only (composed in `src/app/page.tsx`). Logo → `/`; Features & Tools scroll to `#features` / `#tools`; **Get Started** → `/dashboard`; mobile keeps **Get Started** visible next to the menu button.
+- **Brand wordmark:** `BrandLogoLink` (`src/components/layout/BrandLogoLink.tsx`) — **FlowFi** always links to `/` (landing). Use in navbars, footer, and any sidebar/mock sidebar so the target never drifts.
+- **Mobile drawer (app):** in `AppNavbar`; `translate-x-0`/`-translate-x-full` with `cubic-bezier(0.32, 0.72, 0, 1)` (280ms)

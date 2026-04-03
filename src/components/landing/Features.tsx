@@ -97,7 +97,10 @@ export function Features() {
   }
 
   return (
-    <section className="bg-zinc-950 pb-28 pt-16">
+    <section
+      id="features"
+      className="scroll-mt-14 bg-zinc-950 pb-28 pt-16"
+    >
       <div className="mx-auto max-w-7xl px-6 sm:px-10">
         {/* header */}
         <motion.div

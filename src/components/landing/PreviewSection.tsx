@@ -2,6 +2,7 @@
 
 import { useRef } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'framer-motion'
+import { BrandLogoLink } from '@/components/layout/BrandLogoLink'
 
 /* ── mock data ───────────────────────────────────────────── */
 const SUMMARY = [
@@ -169,9 +170,7 @@ export function PreviewSection() {
               <aside className="hidden w-52 shrink-0 flex-col gap-1 border-r border-zinc-800 bg-zinc-950/60 p-4 lg:flex">
                 {/* logo */}
                 <div className="mb-5 flex items-center gap-2 px-2">
-                  <span className="text-sm font-semibold tracking-tight text-zinc-100">
-                    Flowfi
-                  </span>
+                  <BrandLogoLink className="text-sm font-semibold tracking-tight text-zinc-100 transition-colors hover:text-white" />
                 </div>
                 {NAV_ITEMS.map((item) => (
                   <div

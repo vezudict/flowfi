@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
+import { BrandLogoLink } from '@/components/layout/BrandLogoLink'
 
 type FooterLink = {
   label: string
@@ -31,10 +32,7 @@ export function Footer() {
       viewport={{ once: true }}
     >
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-6 px-6 py-10 sm:flex-row sm:justify-between sm:px-10">
-        {/* logo */}
-        <span className="text-sm font-semibold tracking-tight text-zinc-300">
-          Flowfi
-        </span>
+        <BrandLogoLink className="text-sm font-semibold tracking-tight text-zinc-300 transition-colors hover:text-zinc-100" />
 
         {/* links */}
         <nav aria-label="Footer navigation">
@@ -61,7 +59,7 @@ export function Footer() {
             Not financial advice
           </p>
           <p className="text-xs text-zinc-700">
-            &copy; {new Date().getFullYear()} Flowfi
+            &copy; {new Date().getFullYear()} FlowFi
           </p>
         </div>
       </div>
