@@ -6,7 +6,11 @@ import { CalendarIcon } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { Calendar } from '@/components/ui/calendar'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover'
 import { cn } from '@/lib/utils'
 
 export type DatePickerInputProps = {
@@ -44,21 +48,22 @@ export function DatePickerInput({
           variant="outline"
           disabled={disabled}
           className={cn(
-            'h-auto min-h-10 w-full justify-start rounded-xl border-zinc-300 bg-white px-3 py-2 text-left text-sm font-normal text-zinc-900 shadow-none hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:hover:bg-zinc-800/80',
-            'focus-visible:border-indigo-600 focus-visible:ring-2 focus-visible:ring-indigo-500/25 dark:focus-visible:border-indigo-400 dark:focus-visible:ring-indigo-400/30',
-            !value && 'text-zinc-500 dark:text-zinc-500',
+            'h-auto min-h-10 w-full justify-start gap-2 rounded-xl border-input bg-background px-3 py-2 text-left text-sm font-normal text-foreground shadow-sm hover:bg-muted/50',
+            'focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30',
+            !value && 'text-muted-foreground',
             className,
           )}
         >
-          <CalendarIcon className="mr-2 size-4 shrink-0 opacity-70" aria-hidden />
-          {selected ? format(selected, 'MMM d, yyyy') : <span>{placeholder}</span>}
+          <CalendarIcon
+            className="size-4 shrink-0 text-muted-foreground"
+            aria-hidden
+          />
+          <span className="truncate">
+            {selected ? format(selected, 'MMM d, yyyy') : placeholder}
+          </span>
         </Button>
       </PopoverTrigger>
-      <PopoverContent
-        className="w-auto overflow-hidden rounded-2xl border border-zinc-200 p-0 shadow-lg dark:border-zinc-800"
-        align="start"
-        sideOffset={6}
-      >
+      <PopoverContent align="start" sideOffset={10} className="p-0">
         <Calendar
           mode="single"
           selected={selected}
@@ -69,7 +74,7 @@ export function DatePickerInput({
             setOpen(false)
           }}
           initialFocus
-          className="rounded-2xl"
+          className="rounded-2xl border-0 bg-transparent"
         />
       </PopoverContent>
     </Popover>
