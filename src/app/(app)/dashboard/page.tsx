@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
+import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
@@ -16,6 +17,7 @@ import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { formatAmountPlain, formatCurrency } from '@/lib/format-currency'
+import { computeFinancialHealthScore } from '@/lib/financial-health-score'
 import { buildSpendingInsights } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
 import {
@@ -106,6 +108,14 @@ export default function DashboardPage() {
   const spendingInsights = useMemo(
     () => buildSpendingInsights(transactions),
     [transactions],
+  )
+
+  const financialHealth = useMemo(
+    () =>
+      computeFinancialHealthScore(transactions, {
+        monthlyBudget,
+      }),
+    [transactions, monthlyBudget],
   )
 
   function coerceMonthlyBudget(raw: unknown): number | null {
@@ -295,6 +305,12 @@ export default function DashboardPage() {
           monthlyBudget={monthlyBudget}
           onSaveBudget={handleSaveMonthlyBudget}
         />
+      )}
+
+      {listLoading ? (
+        <div className="h-44 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+      ) : (
+        <FinancialHealthCard result={financialHealth} />
       )}
 
       {listLoading ? (
