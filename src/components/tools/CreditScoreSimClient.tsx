@@ -8,6 +8,7 @@ import {
   MAX_CREDIT_AGE_YEARS,
   type CreditSimResult,
 } from '@/lib/credit-score-sim'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 
 function parsePercent(value: string): number | null {
   const t = value.trim()
@@ -116,14 +117,13 @@ export function CreditScoreSimClient() {
             </label>
             <input
               id="cs-payment"
-              type="number"
-              min={0}
-              max={100}
-              step="any"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               required
               value={payment}
-              onChange={(e) => setPayment(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setPayment(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 95"
             />
           </div>
@@ -136,14 +136,13 @@ export function CreditScoreSimClient() {
             </label>
             <input
               id="cs-util"
-              type="number"
-              min={0}
-              max={100}
-              step="any"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               required
               value={utilization}
-              onChange={(e) => setUtilization(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setUtilization(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 25"
             />
           </div>
@@ -156,14 +155,13 @@ export function CreditScoreSimClient() {
             </label>
             <input
               id="cs-age"
-              type="number"
-              min={0}
-              max={MAX_CREDIT_AGE_YEARS}
-              step="any"
+              type="text"
+              inputMode="decimal"
+              autoComplete="off"
               required
               value={ageYears}
-              onChange={(e) => setAgeYears(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setAgeYears(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 5"
             />
           </div>

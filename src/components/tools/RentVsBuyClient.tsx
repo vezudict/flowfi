@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { compareRentVsBuy, type RentVsBuyResult } from '@/lib/rent-vs-buy'
 import { formatCurrency } from '@/lib/format-currency'
 
@@ -91,14 +92,13 @@ export function RentVsBuyClient() {
             </label>
             <input
               id="rvb-rent"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={monthlyRent}
-              onChange={(e) => setMonthlyRent(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setMonthlyRent(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 2200"
             />
           </div>
@@ -111,14 +111,13 @@ export function RentVsBuyClient() {
             </label>
             <input
               id="rvb-price"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={propertyPrice}
-              onChange={(e) => setPropertyPrice(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setPropertyPrice(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 450000"
             />
           </div>
@@ -131,14 +130,13 @@ export function RentVsBuyClient() {
             </label>
             <input
               id="rvb-years"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={years}
-              onChange={(e) => setYears(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setYears(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 5"
             />
           </div>

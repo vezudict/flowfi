@@ -7,9 +7,12 @@ import { useRouter } from 'next/navigation'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
 import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
+import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { useAuth } from '@/contexts/auth-context'
+import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { formatAmountPlain, formatCurrency } from '@/lib/format-currency'
 import { buildSpendingInsights } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
@@ -37,6 +40,7 @@ function DashboardLoadingSkeleton() {
           />
         ))}
       </div>
+      <div className="h-48 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
@@ -55,6 +59,7 @@ export default function DashboardPage() {
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [listLoading, setListLoading] = useState(true)
   const [listError, setListError] = useState<string | null>(null)
+  const [monthlyBudget, setMonthlyBudget] = useState<number | null>(null)
 
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -96,18 +101,34 @@ export default function DashboardPage() {
     [transactions],
   )
 
-  const loadTransactions = useCallback(async () => {
+  function coerceMonthlyBudget(raw: unknown): number | null {
+    if (raw === null || raw === undefined) return null
+    const n = typeof raw === 'number' ? raw : Number(raw)
+    if (!Number.isFinite(n) || n < 0) return null
+    return n
+  }
+
+  const loadDashboard = useCallback(async () => {
     if (!user) return
     setListLoading(true)
     setListError(null)
-    const { data, error: qError } = await fetchTransactionsForUser(user.id)
+    const [txRes, profileRes] = await Promise.all([
+      fetchTransactionsForUser(user.id),
+      fetchProfileBudget(user.id),
+    ])
     setListLoading(false)
-    if (qError) {
-      console.error('[dashboard] fetch transactions:', qError)
-      setListError(qError.message)
-      return
+    if (txRes.error) {
+      console.error('[dashboard] fetch transactions:', txRes.error)
+      setListError(txRes.error.message)
+    } else {
+      setTransactions((txRes.data as Transaction[] | null) ?? [])
     }
-    setTransactions((data as Transaction[] | null) ?? [])
+    if (profileRes.error) {
+      console.error('[dashboard] fetch budget:', profileRes.error)
+      setMonthlyBudget(null)
+    } else {
+      setMonthlyBudget(coerceMonthlyBudget(profileRes.data?.monthly_budget))
+    }
   }, [user])
 
   useEffect(() => {
@@ -119,8 +140,18 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (!user) return
-    void loadTransactions()
-  }, [user, loadTransactions])
+    void loadDashboard()
+  }, [user, loadDashboard])
+
+  async function handleSaveMonthlyBudget(amount: number | null) {
+    if (!user) return { error: 'Not signed in' }
+    const { error } = await updateMonthlyBudget(user.id, amount)
+    if (error) {
+      return { error: error.message }
+    }
+    setMonthlyBudget(amount)
+    return { error: null }
+  }
 
   async function handleAddTransaction(e: React.FormEvent) {
     e.preventDefault()
@@ -160,7 +191,7 @@ export default function DashboardPage() {
     setCategory('')
     setDescription('')
     categorySyncedFromSuggestion.current = null
-    await loadTransactions()
+    await loadDashboard()
   }
 
   if (authLoading || !user) {
@@ -219,6 +250,17 @@ export default function DashboardPage() {
       )}
 
       {listLoading ? (
+        <div className="h-48 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+      ) : (
+        <MonthlyBudgetCard
+          monthLabel={monthLabel}
+          spentThisMonth={analytics.currentMonthTotal}
+          monthlyBudget={monthlyBudget}
+          onSaveBudget={handleSaveMonthlyBudget}
+        />
+      )}
+
+      {listLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
         <FinancialInsights insights={spendingInsights} />
@@ -274,13 +316,13 @@ export default function DashboardPage() {
                 </label>
                 <input
                   id="tx-amount"
-                  type="number"
+                  type="text"
                   inputMode="decimal"
-                  step="any"
+                  autoComplete="off"
                   required
                   value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  className={inputClass}
+                  onChange={(e) => setAmount(sanitizeUnsignedDecimalInput(e.target.value))}
+                  className={`${inputClass} tabular-nums`}
                   placeholder="0.00"
                 />
               </div>

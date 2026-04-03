@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import {
   evaluatePurchaseDecision,
   type DecisionEvaluation,
@@ -115,14 +116,13 @@ export function DecisionEngineClient() {
             </label>
             <input
               id="de-purchase"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={purchase}
-              onChange={(e) => setPurchase(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setPurchase(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 1200"
             />
           </div>
@@ -135,14 +135,13 @@ export function DecisionEngineClient() {
             </label>
             <input
               id="de-income"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={income}
-              onChange={(e) => setIncome(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setIncome(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 5000"
             />
           </div>
@@ -155,14 +154,13 @@ export function DecisionEngineClient() {
             </label>
             <input
               id="de-spending"
-              type="number"
+              type="text"
               inputMode="decimal"
-              min={0}
-              step="any"
+              autoComplete="off"
               required
               value={spending}
-              onChange={(e) => setSpending(e.target.value)}
-              className={fieldClass}
+              onChange={(e) => setSpending(sanitizeUnsignedDecimalInput(e.target.value))}
+              className={`${fieldClass} tabular-nums`}
               placeholder="e.g. 3800"
             />
           </div>

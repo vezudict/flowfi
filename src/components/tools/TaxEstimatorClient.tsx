@@ -1,6 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { estimateIncomeTax } from '@/lib/tax-estimator'
 import { formatRupee } from '@/lib/format-currency'
 
@@ -62,14 +63,13 @@ export function TaxEstimatorClient() {
           </label>
           <input
             id="tax-income"
-            type="number"
+            type="text"
             inputMode="decimal"
-            min={0}
-            step="any"
+            autoComplete="off"
             required
             value={incomeRaw}
-            onChange={(e) => setIncomeRaw(e.target.value)}
-            className={fieldClass}
+            onChange={(e) => setIncomeRaw(sanitizeUnsignedDecimalInput(e.target.value))}
+            className={`${fieldClass} tabular-nums`}
             placeholder="e.g. 800000"
           />
         </div>
