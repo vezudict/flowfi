@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts'
+import type { SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
 
 const COLORS = [
@@ -24,12 +25,13 @@ const COLORS = [
 type CategoryPieChartProps = {
   data: { name: string; value: number }[]
   title: string
+  currency: SupportedCurrencyCode
 }
 
 const cardShell =
   'relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/90 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950/90 dark:hover:shadow-zinc-950/80'
 
-export function CategoryPieChart({ data, title }: CategoryPieChartProps) {
+export function CategoryPieChart({ data, title, currency }: CategoryPieChartProps) {
   if (data.length === 0) {
     return (
       <div
@@ -90,7 +92,10 @@ export function CategoryPieChart({ data, title }: CategoryPieChartProps) {
               </Pie>
               <Tooltip
                 formatter={(value) =>
-                  formatCurrency(typeof value === 'number' ? value : Number(value))
+                  formatCurrency(
+                    typeof value === 'number' ? value : Number(value),
+                    currency,
+                  )
                 }
                 contentStyle={{
                   borderRadius: '0.5rem',

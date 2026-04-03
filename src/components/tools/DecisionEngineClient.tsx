@@ -6,6 +6,7 @@ import {
   evaluatePurchaseDecision,
   type DecisionEvaluation,
 } from '@/lib/decision-engine'
+import { useCurrency } from '@/contexts/currency-context'
 import { formatCurrency } from '@/lib/format-currency'
 
 function parseNonNegative(value: string): number | null {
@@ -47,6 +48,7 @@ const verdictStyles: Record<
 }
 
 export function DecisionEngineClient() {
+  const { currency } = useCurrency()
   const [purchase, setPurchase] = useState('')
   const [income, setIncome] = useState('')
   const [spending, setSpending] = useState('')
@@ -221,7 +223,7 @@ export function DecisionEngineClient() {
                   Disposable income (income − spending)
                 </dt>
                 <dd className="font-medium tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {formatCurrency(result.disposableIncome)}
+                  {formatCurrency(result.disposableIncome, currency)}
                 </dd>
               </div>
             </dl>

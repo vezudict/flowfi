@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Pencil, Receipt, Trash2 } from 'lucide-react'
+import { Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
@@ -13,13 +13,25 @@ import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { TransactionEditModal } from '@/components/dashboard/TransactionEditModal'
 import { Modal } from '@/components/ui/Modal'
 import { useAuth } from '@/contexts/auth-context'
+import { useCurrency } from '@/contexts/currency-context'
 import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
-import { formatAmountPlain, formatCurrency } from '@/lib/format-currency'
+import { formatCurrency } from '@/lib/format-currency'
 import { computeFinancialHealthScore } from '@/lib/financial-health-score'
+import {
+  buildRecurringInsights,
+  getRecurringTransactionIds,
+} from '@/lib/recurring-transactions'
 import { buildSpendingInsights } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
+import {
+  countActiveFilters,
+  emptyTransactionFilters,
+  filterTransactions,
+  uniqueCategoriesFromTransactions,
+  type TransactionFilterState,
+} from '@/lib/transaction-filters'
 import {
   deleteTransaction,
   fetchTransactionsForUser,
@@ -60,6 +72,7 @@ function DashboardLoadingSkeleton() {
 export default function DashboardPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
+  const { currency } = useCurrency()
   const [error, setError] = useState<string | null>(null)
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
@@ -69,6 +82,7 @@ export default function DashboardPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+  const [txFilters, setTxFilters] = useState<TransactionFilterState>(emptyTransactionFilters)
 
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -106,8 +120,23 @@ export default function DashboardPage() {
   )
 
   const spendingInsights = useMemo(
-    () => buildSpendingInsights(transactions),
+    () => buildSpendingInsights(transactions, new Date(), currency),
+    [transactions, currency],
+  )
+
+  const recurringTransactionIds = useMemo(
+    () => getRecurringTransactionIds(transactions),
     [transactions],
+  )
+
+  const recurringInsights = useMemo(
+    () => buildRecurringInsights(transactions, currency),
+    [transactions, currency],
+  )
+
+  const allSpendingInsights = useMemo(
+    () => [...recurringInsights, ...spendingInsights],
+    [recurringInsights, spendingInsights],
   )
 
   const financialHealth = useMemo(
@@ -117,6 +146,18 @@ export default function DashboardPage() {
       }),
     [transactions, monthlyBudget],
   )
+
+  const transactionCategories = useMemo(
+    () => uniqueCategoriesFromTransactions(transactions),
+    [transactions],
+  )
+
+  const filteredTransactions = useMemo(
+    () => filterTransactions(transactions, txFilters),
+    [transactions, txFilters],
+  )
+
+  const activeFilterCount = useMemo(() => countActiveFilters(txFilters), [txFilters])
 
   function coerceMonthlyBudget(raw: unknown): number | null {
     if (raw === null || raw === undefined) return null
@@ -274,7 +315,7 @@ export default function DashboardPage() {
         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           <SummaryCard
             title="Spending · this month"
-            value={formatCurrency(analytics.currentMonthTotal)}
+            value={formatCurrency(analytics.currentMonthTotal, currency)}
             hint={monthLabel}
           />
           <SummaryCard
@@ -289,7 +330,7 @@ export default function DashboardPage() {
             }
             hint={
               analytics.topCategory
-                ? formatCurrency(analytics.topCategory.amount)
+                ? formatCurrency(analytics.topCategory.amount, currency)
                 : 'No data yet'
             }
           />
@@ -303,6 +344,7 @@ export default function DashboardPage() {
           monthLabel={monthLabel}
           spentThisMonth={analytics.currentMonthTotal}
           monthlyBudget={monthlyBudget}
+          currency={currency}
           onSaveBudget={handleSaveMonthlyBudget}
         />
       )}
@@ -316,7 +358,7 @@ export default function DashboardPage() {
       {listLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
-        <FinancialInsights insights={spendingInsights} />
+        <FinancialInsights insights={allSpendingInsights} />
       )}
 
       {listLoading ? (
@@ -329,10 +371,12 @@ export default function DashboardPage() {
           <CategoryPieChart
             title="By category"
             data={analytics.pieByCategory}
+            currency={currency}
           />
           <SpendingBarChart
             title="Over time · this month"
             data={analytics.dailyInCurrentMonth}
+            currency={currency}
           />
         </section>
       )}
@@ -442,9 +486,118 @@ export default function DashboardPage() {
         </div>
 
         <div className="relative border-t border-zinc-100 px-4 py-5 sm:px-6 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-            Recent activity
-          </h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+              Recent activity
+            </h2>
+            {!listLoading && transactions.length > 0 ? (
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Showing{' '}
+                <span className="font-medium tabular-nums text-zinc-700 dark:text-zinc-300">
+                  {filteredTransactions.length}
+                </span>
+                {' of '}
+                <span className="tabular-nums">{transactions.length}</span>
+              </p>
+            ) : null}
+          </div>
+
+          {!listLoading && transactions.length > 0 ? (
+            <div className="mt-4 space-y-3 rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/30 sm:p-4">
+              <div className="relative">
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
+                  aria-hidden
+                />
+                <input
+                  type="search"
+                  value={txFilters.search}
+                  onChange={(e) =>
+                    setTxFilters((f) => ({ ...f, search: e.target.value }))
+                  }
+                  placeholder="Search description…"
+                  className={`${inputClass} pl-9`}
+                  aria-label="Search transactions"
+                />
+              </div>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-1">
+                  <label
+                    htmlFor="tx-filter-category"
+                    className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                  >
+                    Category
+                  </label>
+                  <select
+                    id="tx-filter-category"
+                    value={txFilters.category}
+                    onChange={(e) =>
+                      setTxFilters((f) => ({ ...f, category: e.target.value }))
+                    }
+                    className={inputClass}
+                  >
+                    <option value="">All categories</option>
+                    {transactionCategories.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="tx-filter-from"
+                    className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                  >
+                    From date
+                  </label>
+                  <input
+                    id="tx-filter-from"
+                    type="date"
+                    value={txFilters.dateFrom}
+                    onChange={(e) =>
+                      setTxFilters((f) => ({ ...f, dateFrom: e.target.value }))
+                    }
+                    className={`${inputClass} tabular-nums`}
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label
+                    htmlFor="tx-filter-to"
+                    className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
+                  >
+                    To date
+                  </label>
+                  <input
+                    id="tx-filter-to"
+                    type="date"
+                    value={txFilters.dateTo}
+                    onChange={(e) =>
+                      setTxFilters((f) => ({ ...f, dateTo: e.target.value }))
+                    }
+                    className={`${inputClass} tabular-nums`}
+                  />
+                </div>
+                <div className="flex items-end">
+                  {activeFilterCount > 0 ? (
+                    <button
+                      type="button"
+                      onClick={() => setTxFilters(emptyTransactionFilters)}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-all duration-150 ease-in-out hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:w-auto"
+                    >
+                      <X className="h-4 w-4" aria-hidden />
+                      Clear filters
+                    </button>
+                  ) : (
+                    <p className="pb-2 text-xs text-zinc-400 dark:text-zinc-500">
+                      Filters apply instantly to this list.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          ) : null}
+
           {listLoading ? (
             <div className="mt-4">
               <ul className="space-y-0 divide-y divide-zinc-100 dark:divide-zinc-800">
@@ -482,17 +635,39 @@ export default function DashboardPage() {
                 Add transaction
               </Link>
             </div>
+          ) : filteredTransactions.length === 0 ? (
+            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-10 text-center dark:border-zinc-700/80">
+              <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
+                No matches
+              </p>
+              <p className="mt-2 max-w-sm text-center text-sm text-zinc-500/90 dark:text-zinc-400/85">
+                Nothing in your ledger matches these filters. Try widening the date range or
+                clearing search.
+              </p>
+              <button
+                type="button"
+                onClick={() => setTxFilters(emptyTransactionFilters)}
+                className="mt-4 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              >
+                Clear filters
+              </button>
+            </div>
           ) : (
             <div className="recent-activity-scroll mt-4 max-h-[min(420px,55vh)] overflow-y-auto scroll-smooth pr-3 [-webkit-overflow-scrolling:touch]">
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {transactions.map((tx) => (
+                {filteredTransactions.map((tx) => (
                   <li
                     key={tx.id}
                     className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="font-semibold text-zinc-900 dark:text-zinc-50">
-                        {tx.category}
+                      <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
+                        <span>{tx.category}</span>
+                        {recurringTransactionIds.has(tx.id) ? (
+                          <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                            Recurring
+                          </span>
+                        ) : null}
                       </p>
                       {tx.description ? (
                         <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
@@ -505,7 +680,10 @@ export default function DashboardPage() {
                     </div>
                     <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
                       <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                        {formatAmountPlain(normalizeAmount(tx.amount))}
+                        {formatCurrency(
+                          Math.abs(normalizeAmount(tx.amount)),
+                          currency,
+                        )}
                       </p>
                       <div className="flex items-center gap-1">
                         <button

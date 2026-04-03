@@ -62,7 +62,7 @@ export function AppNavbar() {
             </button>
             <BrandLogoLink
               className="rounded-md text-sm tracking-tight text-zinc-900 transition-colors hover:text-zinc-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-50 dark:hover:text-zinc-300"
-              onClick={() => setMobileOpen(false)}
+              onLogoActivate={() => setMobileOpen(false)}
             />
           </div>
 

@@ -1,9 +1,29 @@
-export function formatCurrency(value: number) {
-  return new Intl.NumberFormat(undefined, {
+import {
+  DEFAULT_CURRENCY,
+  getCurrencyDefinition,
+  type SupportedCurrencyCode,
+} from '@/lib/currencies'
+
+/**
+ * Format a number with the user’s preferred ISO currency (or an explicit code).
+ */
+export function formatCurrency(
+  value: number,
+  currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
+  options?: { maximumFractionDigits?: 0 | 2 },
+) {
+  const meta = getCurrencyDefinition(currency)
+  const defaultFrac = currency === 'JPY' ? (0 as const) : (2 as const)
+  const maxFrac =
+    options?.maximumFractionDigits !== undefined
+      ? options.maximumFractionDigits
+      : defaultFrac
+
+  return new Intl.NumberFormat(meta.locale, {
     style: 'currency',
-    currency: 'USD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    currency,
+    minimumFractionDigits: maxFrac,
+    maximumFractionDigits: maxFrac,
   }).format(value)
 }
 
@@ -14,7 +34,7 @@ export function formatAmountPlain(value: number) {
   }).format(value)
 }
 
-/** INR for insight copy (e.g. ₹500) */
+/** INR for India-specific tools (e.g. tax slabs in INR). */
 export function formatRupee(
   value: number,
   maximumFractionDigits: 0 | 2 = 0,

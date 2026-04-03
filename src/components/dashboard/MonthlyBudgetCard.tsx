@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Loader2 } from 'lucide-react'
+import type { SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 
@@ -12,6 +13,7 @@ type MonthlyBudgetCardProps = {
   monthLabel: string
   spentThisMonth: number
   monthlyBudget: number | null
+  currency: SupportedCurrencyCode
   onSaveBudget: (amount: number | null) => Promise<{ error: string | null }>
 }
 
@@ -25,6 +27,7 @@ export function MonthlyBudgetCard({
   monthLabel,
   spentThisMonth,
   monthlyBudget,
+  currency,
   onSaveBudget,
 }: MonthlyBudgetCardProps) {
   const [draft, setDraft] = useState('')
@@ -87,13 +90,13 @@ export function MonthlyBudgetCard({
               <p className="text-zinc-700 dark:text-zinc-300">
                 <span className="text-zinc-500 dark:text-zinc-400">Spent </span>
                 <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-                  {formatCurrency(spentThisMonth)}
+                  {formatCurrency(spentThisMonth, currency)}
                 </span>
               </p>
               <p className="text-zinc-700 dark:text-zinc-300">
                 <span className="text-zinc-500 dark:text-zinc-400">Budget </span>
                 <span className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
-                  {formatCurrency(cap)}
+                  {formatCurrency(cap, currency)}
                 </span>
               </p>
               <p className="text-zinc-700 dark:text-zinc-300">
@@ -105,7 +108,7 @@ export function MonthlyBudgetCard({
                       : 'text-zinc-900 dark:text-zinc-50'
                   }`}
                 >
-                  {remaining !== null ? formatCurrency(remaining) : '—'}
+                  {remaining !== null ? formatCurrency(remaining, currency) : '—'}
                 </span>
               </p>
               <p className="text-zinc-700 dark:text-zinc-300">

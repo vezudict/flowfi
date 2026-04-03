@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { compareRentVsBuy, type RentVsBuyResult } from '@/lib/rent-vs-buy'
+import { useCurrency } from '@/contexts/currency-context'
 import { formatCurrency } from '@/lib/format-currency'
 
 function parsePositive(value: string): number | null {
@@ -14,6 +15,7 @@ function parsePositive(value: string): number | null {
 }
 
 export function RentVsBuyClient() {
+  const { currency } = useCurrency()
   const [monthlyRent, setMonthlyRent] = useState('')
   const [propertyPrice, setPropertyPrice] = useState('')
   const [years, setYears] = useState('')
@@ -191,7 +193,7 @@ export function RentVsBuyClient() {
                   Total rent paid
                 </dt>
                 <dd className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {formatCurrency(result.totalRentPaid)}
+                  {formatCurrency(result.totalRentPaid, currency)}
                 </dd>
               </div>
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -199,7 +201,7 @@ export function RentVsBuyClient() {
                   Estimated buying cost (price × 1.2)
                 </dt>
                 <dd className="font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                  {formatCurrency(result.estimatedBuyingCost)}
+                  {formatCurrency(result.estimatedBuyingCost, currency)}
                 </dd>
               </div>
             </dl>

@@ -1,5 +1,6 @@
 import { categoryForAnalytics } from '@/lib/category-suggestion'
-import { formatRupee } from '@/lib/format-currency'
+import { DEFAULT_CURRENCY, type SupportedCurrencyCode } from '@/lib/currencies'
+import { formatCurrency } from '@/lib/format-currency'
 import { normalizeAmount } from '@/lib/transaction-analytics'
 import type { Transaction } from '@/lib/transactions'
 
@@ -57,10 +58,12 @@ function medianPositive(values: number[]): number {
   return nums.length % 2 ? nums[mid]! : (nums[mid - 1]! + nums[mid]!) / 2
 }
 
+type MoneyFmt = (value: number, maxFrac?: 0 | 2) => string
+
 function overallMomInsight(
   current: number,
   previous: number,
-  fmt: typeof formatRupee,
+  fmt: MoneyFmt,
 ): SpendingInsight | null {
   if (current === 0 && previous === 0) {
     return {
@@ -100,7 +103,7 @@ function overallMomInsight(
   }
 }
 
-function topCategoryInsight(top: { category: string; amount: number } | null, fmt: typeof formatRupee): SpendingInsight | null {
+function topCategoryInsight(top: { category: string; amount: number } | null, fmt: MoneyFmt): SpendingInsight | null {
   if (!top) {
     return {
       id: 'top-category',
@@ -118,7 +121,7 @@ function topCategoryMomInsight(
   top: { category: string; amount: number } | null,
   currentByCat: Map<string, number>,
   prevByCat: Map<string, number>,
-  fmt: typeof formatRupee,
+  fmt: MoneyFmt,
 ): SpendingInsight | null {
   if (!top) return null
   const prev = prevByCat.get(top.category) ?? 0
@@ -154,7 +157,7 @@ function dailySpikeInsight(
   transactions: Transaction[],
   ref: Date,
   monthTotal: number,
-  fmt: typeof formatRupee,
+  fmt: MoneyFmt,
 ): SpendingInsight | null {
   const y = ref.getFullYear()
   const m = ref.getMonth()
@@ -196,7 +199,7 @@ function categorySpikeInsight(
   currentByCat: Map<string, number>,
   prevByCat: Map<string, number>,
   skipCategory: string | null,
-  fmt: typeof formatRupee,
+  fmt: MoneyFmt,
 ): SpendingInsight | null {
   let best: { cat: string; ratio: number; curr: number; prev: number } | null = null
   for (const [cat, curr] of currentByCat) {
@@ -217,7 +220,7 @@ function categorySpikeInsight(
   }
 }
 
-function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: typeof formatRupee): SpendingInsight | null {
+function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: MoneyFmt): SpendingInsight | null {
   if (currentMonthTotal <= 0) {
     return {
       id: 'avg-daily',
@@ -235,6 +238,7 @@ function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: typeof f
 export function buildSpendingInsights(
   transactions: Transaction[],
   ref: Date = new Date(),
+  currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
 ): SpendingInsight[] {
   if (transactions.length === 0) {
     return []
@@ -249,7 +253,10 @@ export function buildSpendingInsights(
   const previousTotal = totalForMonth(transactions, prevRef)
   const top = topCategoryThisMonth(currentByCat)
 
-  const fmt = formatRupee
+  const fmt: MoneyFmt = (value, maxFrac) =>
+    maxFrac !== undefined
+      ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
+      : formatCurrency(value, currency)
   const insights: SpendingInsight[] = []
 
   const o = overallMomInsight(currentTotal, previousTotal, fmt)

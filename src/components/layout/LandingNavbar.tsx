@@ -46,7 +46,7 @@ export function LandingNavbar() {
         <div className="mx-auto flex h-14 max-w-7xl items-center justify-between gap-4">
           <BrandLogoLink
             className="text-sm tracking-tight text-zinc-50 transition-colors hover:text-white"
-            onClick={() => setMobileOpen(false)}
+            onLogoActivate={() => setMobileOpen(false)}
           />
 
           <nav
