@@ -120,20 +120,17 @@ export default function DashboardPage() {
   })
 
   return (
-    <div className="mx-auto min-h-full w-full max-w-6xl flex-1 px-4 py-10">
-      <header className="text-center sm:text-left">
+    <div className="mx-auto min-h-full w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
+      <header>
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
-          Dashboard
+          Overview
         </h1>
         <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
-          Signed in as{' '}
-          <span className="font-medium text-zinc-700 dark:text-zinc-300">
-            {user.email}
-          </span>
+          {monthLabel}
         </p>
       </header>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <section className="mt-6 grid gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <SummaryCard
           title="Spending · this month"
           value={formatCurrency(analytics.currentMonthTotal)}
@@ -159,11 +156,11 @@ export default function DashboardPage() {
         />
       </section>
 
-      <div className="mt-8">
+      <div className="mt-6">
         <FinancialInsights lines={insightLines} />
       </div>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
+      <section className="mt-6 grid gap-3 sm:gap-4 lg:grid-cols-2">
         <CategoryPieChart
           title="By category"
           data={analytics.pieByCategory}
@@ -174,14 +171,14 @@ export default function DashboardPage() {
         />
       </section>
 
-      <div className="mt-10 rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-        <div className="border-b border-zinc-100 px-6 py-5 dark:border-zinc-800">
-          <h2 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
+      <div className="mt-6 rounded-2xl border border-zinc-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+        <div className="border-b border-zinc-100 px-4 py-4 sm:px-6 dark:border-zinc-800">
+          <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             Add transaction
           </h2>
         </div>
 
-        <div className="px-6 py-6">
+        <div className="px-4 py-5 sm:px-6 sm:py-6">
           {error ? (
             <div
               className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
@@ -192,7 +189,7 @@ export default function DashboardPage() {
           ) : null}
 
           <form onSubmit={handleAddTransaction} className="space-y-4">
-            <div className="grid gap-4 md:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label
                   htmlFor="tx-amount"
@@ -249,25 +246,38 @@ export default function DashboardPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              className="w-full rounded-lg bg-zinc-900 px-6 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
             >
               {submitting ? 'Adding…' : 'Add transaction'}
             </button>
           </form>
         </div>
 
-        <div className="border-t border-zinc-100 px-6 py-6 dark:border-zinc-800">
-          <h2 className="mb-3 text-sm font-medium text-zinc-900 dark:text-zinc-100">
+        <div className="border-t border-zinc-100 px-4 py-5 sm:px-6 dark:border-zinc-800">
+          <h2 className="mb-4 text-sm font-semibold text-zinc-900 dark:text-zinc-100">
             Recent activity
           </h2>
           {listLoading ? (
-            <p className="text-sm text-zinc-500">Loading transactions…</p>
+            <div className="space-y-3">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="flex items-center justify-between gap-4">
+                  <div className="space-y-1.5">
+                    <div className="h-3.5 w-24 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                    <div className="h-3 w-16 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                  </div>
+                  <div className="h-3.5 w-14 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                </div>
+              ))}
+            </div>
           ) : listError ? (
             <p className="text-sm text-red-600 dark:text-red-400" role="alert">
               {listError}
             </p>
           ) : transactions.length === 0 ? (
-            <p className="text-sm text-zinc-500">No transactions yet.</p>
+            <div className="rounded-xl border border-dashed border-zinc-200 py-8 text-center dark:border-zinc-800">
+              <p className="text-sm font-medium text-zinc-500 dark:text-zinc-400">No transactions yet</p>
+              <p className="mt-1 text-xs text-zinc-400 dark:text-zinc-500">Add your first transaction above</p>
+            </div>
           ) : (
             <ul className="max-h-[420px] divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800">
               {transactions.map((tx) => (

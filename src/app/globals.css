@@ -1,9 +1,21 @@
 @import "tailwindcss";
 
+/* Switch Tailwind's dark: variant from media-query to class strategy */
+@variant dark (&:where(.dark, .dark *));
+
 :root {
   --background: #ffffff;
   --foreground: #171717;
   --chart-grid: #e4e4e7;
+  --muted-foreground: #71717a;
+  --muted: #f4f4f5;
+
+  /* shadcn chart palette — zinc-based, maps to recharts fill vars */
+  --chart-1: 240 5.9% 10%;
+  --chart-2: 240 3.7% 26%;
+  --chart-3: 240 3.8% 46%;
+  --chart-4: 240 5% 65%;
+  --chart-5: 240 6% 83%;
 }
 
 @theme inline {
@@ -13,12 +25,17 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-    --chart-grid: #27272a;
-  }
+/* Dark theme — applied when .dark class exists on an ancestor */
+.dark {
+  --background: #0a0a0a;
+  --foreground: #ededed;
+  --chart-grid: #27272a;
+
+  --chart-1: 240 5% 96%;
+  --chart-2: 240 5% 83%;
+  --chart-3: 240 5% 65%;
+  --chart-4: 240 4% 46%;
+  --chart-5: 240 4% 26%;
 }
 
 body {

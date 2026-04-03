@@ -7,7 +7,7 @@ type ToolPageShellProps = {
 
 export function ToolPageShell({ title, description }: ToolPageShellProps) {
   return (
-    <div className="mx-auto w-full max-w-2xl px-4 py-10">
+    <div className="mx-auto w-full max-w-2xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <Link
         href="/tools"
         className="text-sm text-zinc-500 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"

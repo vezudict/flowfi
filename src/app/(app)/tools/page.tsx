@@ -35,33 +35,38 @@ const tools = [
 
 export default function ToolsPage() {
   return (
-    <div className="mx-auto w-full max-w-6xl px-4 py-10">
+    <div className="mx-auto w-full max-w-6xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <header className="max-w-2xl">
         <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
           Financial Tools
         </h1>
-        <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">
+        <p className="mt-2 text-sm text-zinc-500 dark:text-zinc-400">
           Calculators and simulators to support better money decisions.
         </p>
       </header>
 
-      <ul className="mt-10 grid gap-5 sm:grid-cols-2">
+      <ul className="mt-8 grid gap-4 sm:grid-cols-2">
         {tools.map((tool) => (
           <li key={tool.href}>
-            <article className="flex h-full flex-col rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
-              <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-50">
-                {tool.title}
-              </h2>
-              <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+            <Link
+              href={tool.href}
+              className="group flex h-full flex-col rounded-2xl border border-zinc-200/80 bg-white p-6 shadow-sm transition-[transform,box-shadow] duration-200 hover:-translate-y-0.5 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950 dark:hover:shadow-zinc-900/60"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-50">
+                  {tool.title}
+                </h2>
+                <span
+                  className="mt-0.5 shrink-0 text-zinc-300 transition-[transform,color] duration-150 group-hover:translate-x-0.5 group-hover:text-zinc-500 dark:text-zinc-600 dark:group-hover:text-zinc-400"
+                  aria-hidden
+                >
+                  →
+                </span>
+              </div>
+              <p className="mt-2 flex-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
                 {tool.description}
               </p>
-              <Link
-                href={tool.href}
-                className="mt-6 inline-flex w-full items-center justify-center rounded-lg bg-zinc-900 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200 sm:w-auto sm:self-start sm:px-5"
-              >
-                Open Tool
-              </Link>
-            </article>
+            </Link>
           </li>
         ))}
       </ul>

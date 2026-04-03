@@ -23,7 +23,7 @@ export function SpendingBarChart({ data, title }: SpendingBarChartProps) {
 
   if (!hasSpending) {
     return (
-      <div className="flex h-[320px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+      <div className="flex h-[260px] flex-col rounded-2xl border border-zinc-200/80 bg-white p-5 shadow-sm sm:h-[320px] dark:border-zinc-800 dark:bg-zinc-950">
         <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">
           {title}
         </h3>
@@ -39,7 +39,7 @@ export function SpendingBarChart({ data, title }: SpendingBarChartProps) {
       <h3 className="mb-4 text-sm font-medium text-zinc-900 dark:text-zinc-100">
         {title}
       </h3>
-      <div className="h-[280px] w-full">
+      <div className="h-[220px] w-full sm:h-[280px]">
         <ResponsiveContainer width="100%" height="100%">
           <BarChart
             data={data}

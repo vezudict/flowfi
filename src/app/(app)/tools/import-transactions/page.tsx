@@ -3,7 +3,7 @@ import { ImportTransactionsClient } from '@/components/tools/ImportTransactionsC
 
 export default function ImportTransactionsPage() {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-10">
+    <div className="mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8">
       <Link
         href="/tools"
         className="text-sm text-zinc-500 transition-colors hover:text-zinc-800 dark:hover:text-zinc-200"
