@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AuthBackLink } from '@/components/auth/AuthBackLink'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { useAuth } from '@/contexts/auth-context'
 import { Loader2 } from 'lucide-react'
@@ -50,7 +51,8 @@ export default function LoginPage() {
 
   if (authLoading) {
     return (
-      <div className="mx-auto flex min-h-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
+      <div className="relative mx-auto flex min-h-full max-w-md flex-1 flex-col justify-center px-4 py-16 sm:px-6 lg:px-8">
+        <AuthBackLink />
         <div className="space-y-4 rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950 sm:p-8">
           <div className="mx-auto h-8 w-48 animate-pulse rounded-md bg-zinc-200 dark:bg-zinc-800" />
           <div className="mx-auto h-4 w-full max-w-xs animate-pulse rounded-md bg-zinc-100 dark:bg-zinc-900" />

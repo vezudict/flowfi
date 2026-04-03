@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { AuthBackLink } from '@/components/auth/AuthBackLink'
 
 type AuthShellProps = {
   title: string
@@ -9,7 +10,8 @@ type AuthShellProps = {
 
 export function AuthShell({ title, subtitle, children, footer }: AuthShellProps) {
   return (
-    <div className="flex min-h-full flex-1 flex-col items-center justify-center px-4 py-16 sm:px-6 lg:px-8">
+    <div className="relative flex min-h-full flex-1 flex-col items-center justify-center px-4 py-16 sm:px-6 lg:px-8">
+      <AuthBackLink />
       <div className="relative w-full max-w-md overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-indigo-50/40 p-6 shadow-sm transition-shadow duration-150 ease-in-out dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-indigo-950/20 sm:p-8">
         <div className="mb-8 space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight text-zinc-900 dark:text-zinc-50">
