@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { updateTransaction, type Transaction } from '@/lib/transactions'
+import { toast } from 'sonner'
 
 const inputClass =
   'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
@@ -75,12 +76,14 @@ export function TransactionEditModal({
     })
     setSaving(false)
     if (error) {
+      toast.error(error.message || 'Something went wrong')
       setFormError(error.message)
       return
     }
     if (data) {
       onSaved(data as Transaction)
     }
+    toast.success('Transaction updated')
     onClose()
   }
 

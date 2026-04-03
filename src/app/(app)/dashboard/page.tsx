@@ -10,6 +10,7 @@ import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { TransactionEditModal } from '@/components/dashboard/TransactionEditModal'
+import { Modal } from '@/components/ui/Modal'
 import { useAuth } from '@/contexts/auth-context'
 import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
@@ -23,6 +24,7 @@ import {
   insertTransaction,
   type Transaction,
 } from '@/lib/transactions'
+import { toast } from 'sonner'
 
 const inputClass =
   'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
@@ -63,7 +65,8 @@ export default function DashboardPage() {
   const [listError, setListError] = useState<string | null>(null)
   const [monthlyBudget, setMonthlyBudget] = useState<number | null>(null)
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
-  const [deletingId, setDeletingId] = useState<string | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null)
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false)
 
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -151,26 +154,28 @@ export default function DashboardPage() {
     setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
   }
 
-  async function handleDeleteTransaction(tx: Transaction) {
-    if (!user) return
-    if (
-      !confirm(
-        'Delete this transaction? This cannot be undone.',
-      )
-    ) {
-      return
-    }
+  async function confirmPendingDelete() {
+    const tx = pendingDelete
+    if (!tx || !user) return
     setListError(null)
-    setDeletingId(tx.id)
+    setDeleteSubmitting(true)
     const { error: delError } = await deleteTransaction(tx.id, user.id)
-    setDeletingId(null)
+    setDeleteSubmitting(false)
+    setPendingDelete(null)
     if (delError) {
       console.error('[dashboard] delete transaction:', delError)
+      toast.error(delError.message || 'Something went wrong')
       setListError(delError.message)
       return
     }
+    toast.success('Transaction deleted')
     setTransactions((prev) => prev.filter((t) => t.id !== tx.id))
     if (editingTransaction?.id === tx.id) setEditingTransaction(null)
+  }
+
+  function closeDeleteModal() {
+    if (deleteSubmitting) return
+    setPendingDelete(null)
   }
 
   async function handleSaveMonthlyBudget(amount: number | null) {
@@ -213,10 +218,12 @@ export default function DashboardPage() {
 
     if (insertError) {
       console.error('[dashboard] insert transaction:', insertError)
+      toast.error(insertError.message || 'Something went wrong')
       setError(insertError.message)
       return
     }
 
+    toast.success('Transaction added')
     setAmount('')
     setCategory('')
     setDescription('')
@@ -316,9 +323,9 @@ export default function DashboardPage() {
 
       <div
         id="add-transaction"
-        className="relative scroll-mt-24 overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/70 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50"
+        className="relative scroll-mt-24 rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/70 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50"
       >
-        <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
+        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
         <div className="relative border-b border-zinc-100 px-4 py-4 sm:px-6 dark:border-zinc-800">
           <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             Add transaction
@@ -419,27 +426,29 @@ export default function DashboardPage() {
         </div>
 
         <div className="relative border-t border-zinc-100 px-4 py-5 sm:px-6 dark:border-zinc-800">
-          <h2 className="mb-4 text-base font-semibold text-zinc-900 dark:text-zinc-100">
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
             Recent activity
           </h2>
           {listLoading ? (
-            <ul className="space-y-0 divide-y divide-zinc-100 dark:divide-zinc-800">
-              {[1, 2, 3, 4].map((i) => (
-                <li key={i} className="flex items-center justify-between gap-4 py-4">
-                  <div className="min-h-[52px] flex-1 space-y-2">
-                    <div className="h-4 w-28 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-                    <div className="h-3 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-                  </div>
-                  <div className="h-5 w-20 shrink-0 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
-                </li>
-              ))}
-            </ul>
+            <div className="mt-4">
+              <ul className="space-y-0 divide-y divide-zinc-100 dark:divide-zinc-800">
+                {[1, 2, 3, 4].map((i) => (
+                  <li key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-h-[52px] flex-1 space-y-2">
+                      <div className="h-4 w-28 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                      <div className="h-3 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                    </div>
+                    <div className="h-5 w-20 shrink-0 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+                  </li>
+                ))}
+              </ul>
+            </div>
           ) : listError ? (
-            <p className="text-sm text-red-600 dark:text-red-400" role="alert">
+            <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
               {listError}
             </p>
           ) : transactions.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-12 text-center dark:border-zinc-700/80">
+            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-12 text-center dark:border-zinc-700/80">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
                 <Receipt className="h-6 w-6" aria-hidden />
               </div>
@@ -458,56 +467,54 @@ export default function DashboardPage() {
               </Link>
             </div>
           ) : (
-            <ul className="max-h-[420px] divide-y divide-zinc-100 overflow-y-auto dark:divide-zinc-800">
-              {transactions.map((tx) => (
-                <li
-                  key={tx.id}
-                  className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
-                >
-                  <div className="min-w-0 flex-1">
-                    <p className="font-semibold text-zinc-900 dark:text-zinc-50">
-                      {tx.category}
-                    </p>
-                    {tx.description ? (
-                      <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
-                        {tx.description}
+            <div className="recent-activity-scroll mt-4 max-h-[min(420px,55vh)] overflow-y-auto scroll-smooth pr-3 [-webkit-overflow-scrolling:touch]">
+              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {transactions.map((tx) => (
+                  <li
+                    key={tx.id}
+                    className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-zinc-900 dark:text-zinc-50">
+                        {tx.category}
                       </p>
-                    ) : null}
-                    <p className="mt-1 text-xs text-zinc-400/90 dark:text-zinc-500/90">
-                      {new Date(tx.created_at).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                    <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                      {formatAmountPlain(normalizeAmount(tx.amount))}
-                    </p>
-                    <div className="flex items-center gap-1">
+                      {tx.description ? (
+                        <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
+                          {tx.description}
+                        </p>
+                      ) : null}
+                      <p className="mt-1 text-xs text-zinc-400/90 dark:text-zinc-500/90">
+                        {new Date(tx.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
+                      <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                        {formatAmountPlain(normalizeAmount(tx.amount))}
+                      </p>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => setEditingTransaction(tx)}
+                          className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+                          aria-label={`Edit transaction ${tx.category}`}
+                        >
+                          <Pencil className="h-4 w-4" aria-hidden />
+                        </button>
                       <button
                         type="button"
-                        onClick={() => setEditingTransaction(tx)}
-                        className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
-                        aria-label={`Edit transaction ${tx.category}`}
-                      >
-                        <Pencil className="h-4 w-4" aria-hidden />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleDeleteTransaction(tx)}
-                        disabled={deletingId === tx.id}
+                        onClick={() => setPendingDelete(tx)}
+                        disabled={deleteSubmitting && pendingDelete?.id === tx.id}
                         className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
                         aria-label={`Delete transaction ${tx.category}`}
                       >
-                        {deletingId === tx.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-                        ) : (
-                          <Trash2 className="h-4 w-4" aria-hidden />
-                        )}
+                        <Trash2 className="h-4 w-4" aria-hidden />
                       </button>
+                      </div>
                     </div>
-                  </div>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
       </div>
@@ -516,6 +523,37 @@ export default function DashboardPage() {
         transaction={editingTransaction}
         onClose={() => setEditingTransaction(null)}
         onSaved={handleTransactionSaved}
+      />
+
+      <Modal
+        open={!!pendingDelete}
+        onClose={closeDeleteModal}
+        title="Delete transaction?"
+        description="This action cannot be undone."
+        titleId="delete-tx-title"
+        footer={
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={deleteSubmitting}
+              onClick={closeDeleteModal}
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={deleteSubmitting}
+              onClick={() => void confirmPendingDelete()}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
+            >
+              {deleteSubmitting ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              ) : null}
+              Delete
+            </button>
+          </div>
+        }
       />
     </div>
   )

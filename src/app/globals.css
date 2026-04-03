@@ -20,6 +20,10 @@
   --chart-3: 240 3.8% 46%;
   --chart-4: 240 5% 65%;
   --chart-5: 240 6% 83%;
+
+  /* Minimal scrollbars — low-contrast zinc */
+  --app-scrollbar-thumb: rgb(24 24 27 / 0.14);
+  --app-scrollbar-thumb-hover: rgb(24 24 27 / 0.22);
 }
 
 @theme inline {
@@ -43,6 +47,9 @@
   --chart-3: 240 5% 65%;
   --chart-4: 240 4% 46%;
   --chart-5: 240 4% 26%;
+
+  --app-scrollbar-thumb: rgb(228 228 231 / 0.12);
+  --app-scrollbar-thumb-hover: rgb(228 228 231 / 0.2);
 }
 
 body {
@@ -61,6 +68,31 @@ input[type='number']::-webkit-inner-spin-button {
 input[type='number'] {
   -moz-appearance: textfield;
   appearance: textfield;
+}
+
+/* Thin, neutral scrollbar (e.g. dashboard recent activity) */
+.recent-activity-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--app-scrollbar-thumb) transparent;
+}
+
+.recent-activity-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+
+.recent-activity-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.recent-activity-scroll::-webkit-scrollbar-thumb {
+  border-radius: 9999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+  background-color: var(--app-scrollbar-thumb);
+}
+
+.recent-activity-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--app-scrollbar-thumb-hover);
 }
 
 /* Result panels animate in when they appear */

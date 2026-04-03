@@ -32,7 +32,7 @@ export function Footer() {
       viewport={{ once: true }}
     >
       <div className="mx-auto flex max-w-7xl flex-col items-center gap-6 px-6 py-10 sm:flex-row sm:justify-between sm:px-10">
-        <BrandLogoLink className="text-sm font-semibold tracking-tight text-zinc-300 transition-colors hover:text-zinc-100" />
+        <BrandLogoLink className="text-sm tracking-tight text-zinc-300 transition-colors hover:text-zinc-100" />
 
         {/* links */}
         <nav aria-label="Footer navigation">

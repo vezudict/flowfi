@@ -170,7 +170,7 @@ export function PreviewSection() {
               <aside className="hidden w-52 shrink-0 flex-col gap-1 border-r border-zinc-800 bg-zinc-950/60 p-4 lg:flex">
                 {/* logo */}
                 <div className="mb-5 flex items-center gap-2 px-2">
-                  <BrandLogoLink className="text-sm font-semibold tracking-tight text-zinc-100 transition-colors hover:text-white" />
+                  <BrandLogoLink className="text-sm tracking-tight text-zinc-100 transition-colors hover:text-white" />
                 </div>
                 {NAV_ITEMS.map((item) => (
                   <div
