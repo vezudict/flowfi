@@ -1,36 +1,128 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FlowFi — Financial Intelligence Platform
+
+**A modular web app to track spending, visualize patterns, and run practical financial tools—all backed by secure auth and data you own.**
+
+---
+
+## Description
+
+FlowFi is a **financial intelligence platform** built for clarity, not noise. Users sign in, log transactions, and see **analytics**, **plain-language insights**, and a growing set of **decision tools**. A **CSV import** path lets you bring historical activity into the same pipeline your dashboard already uses—no separate spreadsheets required.
+
+---
+
+## Features
+
+- **Expense tracking** — Create and list transactions tied to your account (CRUD-oriented flows).
+- **Analytics dashboard** — Summary cards, category and time-series **charts**, and month-over-month context.
+- **Financial insights** — Readable takeaways from your data (e.g. spending pace, category focus).
+- **Decision Engine** — **Affordability-style** analysis from income, spending, and a purchase amount.
+- **Rent vs Buy** — Simple rent totals vs. a stylized purchase-cost estimate over your planned horizon.
+- **Tax Estimator** — Illustrative **Indian slab** model with **per-slab breakdown** (educational only).
+- **CSV transaction import** — Upload, **preview**, and batch-insert rows (`date`, `description`, `amount`) into `transactions`.
+
+---
+
+## Tech Stack
+
+| Layer        | Technology |
+| ------------ | ---------- |
+| Frontend     | **Next.js** (App Router, React) |
+| Backend / DB | **Supabase** (Postgres, Auth, Row Level Security) |
+| Styling      | **Tailwind CSS** |
+| Charts       | **Recharts** |
+| CSV parsing  | **PapaParse** |
+
+---
+
+## Architecture Overview
+
+- **Frontend:** Next.js client UI with route groups for the **app shell** (`/dashboard`, `/tools/*`) and **auth** pages (`/login`, `/signup`). Data flows through the Supabase JS client and React hooks/context where appropriate.
+- **Backend:** Supabase hosts **Postgres**, **Auth**, and API access from the browser using the **anon** key. **Row Level Security (RLS)** is assumed on `transactions` (and related tables) so each user only reads/writes **their own rows**.
+- **Modular tools:** Financial utilities live under **`/tools`** (e.g. tax, rent vs buy, import)—each route is a focused surface so new tools can ship without rewiring the core dashboard.
+
+---
+
+## Key Highlights
+
+- **Security-minded** — RLS-friendly design; secrets stay in env, not in the repo.
+- **Practical tooling** — Calculators and simulators aimed at real decisions, clearly labeled as illustrative where needed.
+- **Modular product shape** — Dashboard vs. tools vs. auth are separated for easier iteration.
+- **Import pipeline** — Validate and preview CSV data **before** it hits your ledger.
+
+---
+
+## Live Demo
+
+**[Add your deployment URL](https://example.com)** — *Replace with production or Vercel link when ready.*
+
+---
+
+## Screenshots
+
+| Area | Preview |
+| ---- | ------- |
+| Dashboard & analytics | *Coming soon — add image* |
+| Tools hub | *Coming soon — add image* |
+| Tax / import flows | *Coming soon — add image* |
+
+---
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js **18+** (recommended: current LTS)
+- npm (or compatible package manager)
+- A [Supabase](https://supabase.com) project with Auth and tables your app expects (`profiles`, `transactions`, etc.)
+
+### Local setup
 
 ```bash
+git clone https://github.com/vezudict/flowfi.git
+cd flowfi
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open **[http://localhost:3000](http://localhost:3000)**.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Build
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm run build
+npm start
+```
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## Environment Variables
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+Create **`.env.local`** in the project root (never commit it):
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```env
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
+```
 
-## Deploy on Vercel
+Use the **Project URL** and **anon public** key from the Supabase dashboard (**Settings → API**).
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+---
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Future Improvements
+
+- **AI-based insights** — Deeper, personalized narratives from transaction history.
+- **PDF statement parsing** — Ingest bank exports beyond CSV.
+- **Auto categorization** — Rules or ML-assisted category assignment.
+- **Financial health score** — A single signal users can track over time.
+
+---
+
+## Disclaimer
+
+FlowFi is **not financial, tax, or legal advice**. All numbers, calculators, and tax outputs are **approximate, simplified, or illustrative**—including the tax slabs and import mapping—**inappropriate substitutes** for a qualified professional or official filing rules. Use at your own discretion.
+
+---
+
+## License
+
+This project is provided as-is for demonstration and learning. Add a `LICENSE` file if you plan to open-source under specific terms.
