@@ -33,7 +33,7 @@ function MiniBarChart() {
 /* ── preview cards ───────────────────────────────────────── */
 function SpendingCard() {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm transition-colors duration-200 hover:border-zinc-700">
       <p className="text-xs font-medium uppercase tracking-wider text-zinc-500">
         Spending · this month
       </p>
@@ -61,7 +61,7 @@ function SpendingCard() {
 
 function ChartCard() {
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm transition-colors duration-200 hover:border-zinc-700">
       <div className="flex items-center justify-between">
         <p className="text-xs font-medium text-zinc-400">Over time · this month</p>
         <div className="flex gap-1">
@@ -88,7 +88,7 @@ function InsightsCard() {
     'Your average daily spending is $81.',
   ]
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm">
+    <div className="rounded-2xl border border-zinc-800 bg-zinc-900/80 px-5 py-4 backdrop-blur-sm transition-colors duration-200 hover:border-zinc-700">
       <p className="text-xs font-medium text-zinc-400">Financial insights</p>
       <ul className="mt-3 space-y-2.5">
         {lines.map((line) => (
@@ -210,7 +210,17 @@ export function Hero() {
           >
             {['Supabase-powered', 'RLS-secured', 'Real-time analytics'].map((t) => (
               <span key={t} className="flex items-center gap-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-zinc-700" />
+                {t === 'Real-time analytics' ? (
+                  <span className="relative flex h-1.5 w-1.5 shrink-0">
+                    <span
+                      className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-50"
+                      style={{ animationDuration: '2.4s' }}
+                    />
+                    <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                  </span>
+                ) : (
+                  <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-zinc-700" />
+                )}
                 {t}
               </span>
             ))}
@@ -220,7 +230,7 @@ export function Hero() {
         {/* right: dashboard preview */}
         <motion.div
           className="relative flex flex-col gap-3 lg:flex-1"
-          animate={reduce ? {} : { y: [0, -10, 0] }}
+          animate={reduce ? {} : { y: [0, -6, 0] }}
           transition={{ duration: 6, repeat: Infinity, ease: 'easeInOut' }}
         >
           {/* glow */}

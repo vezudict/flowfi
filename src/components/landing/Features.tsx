@@ -144,9 +144,6 @@ export function Features() {
                     }
               }
               className="group relative flex flex-col gap-4 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6 backdrop-blur-sm transition-colors duration-200 hover:border-zinc-600"
-              style={{
-                boxShadow: undefined,
-              }}
             >
               {/* hover glow */}
               <div className="pointer-events-none absolute inset-0 rounded-2xl opacity-0 transition-opacity duration-300 group-hover:opacity-100"
@@ -156,7 +153,7 @@ export function Features() {
               />
 
               {/* icon */}
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700/60 bg-zinc-800/80 text-zinc-300 transition-colors duration-200 group-hover:border-zinc-600 group-hover:text-white">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-zinc-700/60 bg-zinc-800/80 text-zinc-300 transition-[transform,border-color,color] duration-200 group-hover:scale-105 group-hover:border-zinc-600 group-hover:text-white">
                 <Icon />
               </div>
 

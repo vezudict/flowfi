@@ -2,8 +2,12 @@
 
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { CTASection } from '@/components/landing/CTASection'
 import { Features } from '@/components/landing/Features'
+import { Footer } from '@/components/landing/Footer'
 import { Hero } from '@/components/landing/Hero'
+import { PreviewSection } from '@/components/landing/PreviewSection'
+import { ToolsSection } from '@/components/landing/ToolsSection'
 import { useAuth } from '@/contexts/auth-context'
 
 export default function Home() {
@@ -27,9 +31,15 @@ export default function Home() {
   if (user) return null
 
   return (
-    <>
-      <Hero />
-      <Features />
-    </>
+    <div className="flex min-h-screen flex-col bg-zinc-950">
+      <main>
+        <Hero />
+        <Features />
+        <ToolsSection />
+        <PreviewSection />
+        <CTASection />
+      </main>
+      <Footer />
+    </div>
   )
 }
