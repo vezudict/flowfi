@@ -7,12 +7,28 @@
   --background: #ffffff;
   --foreground: #171717;
   --chart-grid: #e4e4e7;
+  --radius: 0.75rem;
   /* Muted body / secondary text — slightly softer for hierarchy */
   --muted-foreground: rgb(113 113 122 / 0.85);
   --muted: #f4f4f5;
   /* Accent — indigo; use via Tailwind indigo-* in components */
   --accent: #4f46e5;
   --accent-foreground: #ffffff;
+  /* shadcn/ui semantic tokens (Calendar, Popover, Button) */
+  --card: #ffffff;
+  --card-foreground: #171717;
+  --popover: #ffffff;
+  --popover-foreground: #171717;
+  --primary: #4f46e5;
+  --primary-foreground: #ffffff;
+  --secondary: #f4f4f5;
+  --secondary-foreground: #18181b;
+  --destructive: #dc2626;
+  --destructive-foreground: #fafafa;
+  --border: #e4e4e7;
+  --input: #e4e4e7;
+  --ring: #6366f1;
+  --ring-offset: #ffffff;
 
   /* shadcn chart palette — zinc-based, maps to recharts fill vars */
   --chart-1: 240 5.9% 10%;
@@ -31,6 +47,30 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ring-offset: var(--ring-offset);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
 }
 
 /* Dark theme — applied when .dark class exists on an ancestor */
@@ -39,8 +79,24 @@
   --foreground: #ededed;
   --chart-grid: #27272a;
   --muted-foreground: rgb(161 161 170 / 0.82);
+  --muted: #27272a;
   --accent: #6366f1;
   --accent-foreground: #ffffff;
+
+  --card: #09090b;
+  --card-foreground: #fafafa;
+  --popover: #09090b;
+  --popover-foreground: #fafafa;
+  --primary: #6366f1;
+  --primary-foreground: #ffffff;
+  --secondary: #27272a;
+  --secondary-foreground: #fafafa;
+  --destructive: #ef4444;
+  --destructive-foreground: #fafafa;
+  --border: #3f3f46;
+  --input: #3f3f46;
+  --ring: #818cf8;
+  --ring-offset: #0a0a0a;
 
   --chart-1: 240 5% 96%;
   --chart-2: 240 5% 83%;

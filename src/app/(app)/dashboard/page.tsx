@@ -12,6 +12,7 @@ import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { TransactionEditModal } from '@/components/dashboard/TransactionEditModal'
 import { Modal } from '@/components/ui/Modal'
+import { DatePickerInput } from '@/components/ui/date-picker'
 import { useAuth } from '@/contexts/auth-context'
 import { useCurrency } from '@/contexts/currency-context'
 import { fetchProfileBudget } from '@/lib/profile-budget'
@@ -558,14 +559,12 @@ export default function DashboardPage() {
                   >
                     From date
                   </label>
-                  <input
+                  <DatePickerInput
                     id="tx-filter-from"
-                    type="date"
                     value={txFilters.dateFrom}
-                    onChange={(e) =>
-                      setTxFilters((f) => ({ ...f, dateFrom: e.target.value }))
-                    }
-                    className={`${inputClass} tabular-nums`}
+                    onChange={(dateFrom) => setTxFilters((f) => ({ ...f, dateFrom }))}
+                    placeholder="From…"
+                    className="tabular-nums"
                   />
                 </div>
                 <div className="space-y-1">
@@ -575,14 +574,12 @@ export default function DashboardPage() {
                   >
                     To date
                   </label>
-                  <input
+                  <DatePickerInput
                     id="tx-filter-to"
-                    type="date"
                     value={txFilters.dateTo}
-                    onChange={(e) =>
-                      setTxFilters((f) => ({ ...f, dateTo: e.target.value }))
-                    }
-                    className={`${inputClass} tabular-nums`}
+                    onChange={(dateTo) => setTxFilters((f) => ({ ...f, dateTo }))}
+                    placeholder="To…"
+                    className="tabular-nums"
                   />
                 </div>
                 <div className="flex items-end">
