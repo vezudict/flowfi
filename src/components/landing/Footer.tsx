@@ -3,7 +3,13 @@
 import Link from 'next/link'
 import { motion, useReducedMotion } from 'framer-motion'
 
-const LINKS = [
+type FooterLink = {
+  label: string
+  href: string
+  external?: boolean
+}
+
+const LINKS: FooterLink[] = [
   { label: 'Dashboard', href: '/dashboard' },
   { label: 'Tools', href: '/tools' },
   {
@@ -11,7 +17,7 @@ const LINKS = [
     href: 'https://github.com/aaronaaroff/flowfi',
     external: true,
   },
-] as const
+]
 
 export function Footer() {
   const reduce = useReducedMotion()
