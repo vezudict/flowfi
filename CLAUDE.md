@@ -28,7 +28,7 @@
 
 | Path | Description |
 |------|-------------|
-| `/` | Public landing (redirects auth users to `/dashboard`) |
+| `/` | Public landing (signed-in and signed-out users; no auto-redirect) |
 | `/login` | Login page |
 | `/signup` | Signup page |
 | `/dashboard` | Main dashboard — transactions, analytics, charts |
@@ -38,15 +38,17 @@
 | `/tools/decision-engine` | Financial Decision Engine |
 | `/tools/rent-vs-buy` | Rent vs Buy Calculator |
 | `/tools/import-transactions` | CSV Import |
-| `/settings` | Settings placeholder |
+| `/settings` | Settings (appearance, currency) |
 
 ## Architecture
 
 - **Auth:** Supabase auth via `AuthContext` (`src/contexts/auth-context.tsx`)
+- **Idle timeout:** `SessionIdleTracker` in `Providers` — after 15 minutes without pointer/keyboard/click/scroll (throttled), user is signed out and sent to `/login?reason=idle`; warning modal with countdown at 14 minutes. Client-only UX; enforce session limits server-side separately if needed.
+- **Sensitive writes:** Prefer Route Handlers under `src/app/api/` with `Authorization: Bearer <access_token>` and `supabase.auth.getUser()` via `createSupabaseFromAccessToken` (`src/lib/supabase-server.ts`). Client helpers: `authedFetch` / `readAuthedJson` (`src/lib/authed-api.ts`). Rate limits: in-memory Map in `src/lib/rate-limit.ts` (fixed windows, auto reset after `resetAt`; auth = IP-only; mutations = per-user + per-IP dual caps).
 - **Sign-out:** `AppNavbar` (`src/components/layout/AppNavbar.tsx`) — primary sign-out control in the global app header (keep a single obvious sign-out entry point).
 - **App layout:** `src/app/(app)/layout.tsx` renders `AppShell`
 - **AppShell:** `src/components/layout/AppShell.tsx` — client shell; renders sticky `AppNavbar` + page `<main>` (no sidebar inset).
-- **AppNavbar:** `src/components/layout/AppNavbar.tsx` — logo links to `/`; centered Dashboard & Tools with active state; settings icon → `/settings`; theme toggle + sign-out on the right. Mobile: hamburger opens left drawer (Dashboard, Tools, Settings) with backdrop; sign-out stays visible in the header.
-- **LandingNavbar:** `src/components/layout/LandingNavbar.tsx` — used on `/` only (composed in `src/app/page.tsx`). Logo → `/`; Features & Tools scroll to `#features` / `#tools`; **Get Started** → `/dashboard`; mobile keeps **Get Started** visible next to the menu button.
+- **AppNavbar:** `src/components/layout/AppNavbar.tsx` — logo links to `/`; centered Dashboard & Tools with active state; settings icon → `/settings`; sign-out on the right. Mobile: hamburger opens left drawer (Dashboard, Tools, Settings) with backdrop; sign-out stays visible in the header.
+- **LandingNavbar:** `src/components/layout/LandingNavbar.tsx` — used on `/` only (composed in `src/app/page.tsx`). Logo → `/`; Features & Tools scroll to `#features` / `#tools`; primary CTA → `/dashboard` — label **Get Started** when signed out, **Go to Dashboard** when signed in; mobile keeps that CTA visible next to the menu button.
 - **Brand wordmark:** `BrandLogoLink` (`src/components/layout/BrandLogoLink.tsx`) — **FlowFi** always links to `/` (landing). Use in navbars, footer, and any sidebar/mock sidebar so the target never drifts.
 - **Mobile drawer (app):** in `AppNavbar`; `translate-x-0`/`-translate-x-full` with `cubic-bezier(0.32, 0.72, 0, 1)` (280ms)

@@ -1,18 +1,21 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { AuthBackLink } from '@/components/auth/AuthBackLink'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { useAuth } from '@/contexts/auth-context'
 import { Loader2 } from 'lucide-react'
+import { preflightAuthAttempt } from '@/lib/authed-api'
 import { ensureUserProfile } from '@/lib/ensure-profile'
 import { supabase } from '@/lib/supabase'
+import { toast } from 'sonner'
 
 export default function LoginPage() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
+  const idleToastShown = useRef(false)
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -23,11 +26,25 @@ export default function LoginPage() {
     router.replace('/dashboard')
   }, [user, authLoading, router])
 
+  useEffect(() => {
+    if (typeof window === 'undefined' || idleToastShown.current) return
+    const params = new URLSearchParams(window.location.search)
+    if (params.get('reason') !== 'idle') return
+    idleToastShown.current = true
+    toast.message('Session expired due to inactivity.')
+    router.replace('/login')
+  }, [router])
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setError(null)
     setLoading(true)
     try {
+      const gate = await preflightAuthAttempt()
+      if (!gate.ok) {
+        setError(gate.message)
+        return
+      }
       const { error: signError } = await supabase.auth.signInWithPassword({
         email,
         password,

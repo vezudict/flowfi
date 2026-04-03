@@ -14,7 +14,8 @@ import {
   isSupportedCurrency,
   type SupportedCurrencyCode,
 } from '@/lib/currencies'
-import { fetchPreferredCurrency, updatePreferredCurrency } from '@/lib/profile-budget'
+import { authedFetch, readAuthedJson } from '@/lib/authed-api'
+import { fetchPreferredCurrency } from '@/lib/profile-budget'
 
 const STORAGE_KEY = 'flowfi-preferred-currency'
 
@@ -78,8 +79,12 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
         /* ignore */
       }
       if (user) {
-        const { error } = await updatePreferredCurrency(user.id, next)
-        if (error) console.error('[currency] profile update:', error)
+        const res = await authedFetch('/api/profile/currency', {
+          method: 'PATCH',
+          json: { preferredCurrency: next },
+        })
+        const out = await readAuthedJson<{ ok: boolean }>(res)
+        if (!out.ok) console.error('[currency] profile update:', out.message)
       }
     },
     [user],

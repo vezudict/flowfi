@@ -4,7 +4,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
-import { updateTransaction, type Transaction } from '@/lib/transactions'
+import { authedFetch, readAuthedJson } from '@/lib/authed-api'
+import type { Transaction } from '@/lib/transactions'
 import { toast } from 'sonner'
 
 const inputClass =
@@ -67,22 +68,22 @@ export function TransactionEditModal({
     }
     setSaving(true)
     const desc = description.trim()
-    const { data, error } = await updateTransaction({
-      id: transaction.id,
-      userId: transaction.user_id,
-      amount: parsed,
-      category: cat,
-      description: desc.length ? desc : null,
+    const res = await authedFetch(`/api/transactions/${transaction.id}`, {
+      method: 'PATCH',
+      json: {
+        amount: parsed,
+        category: cat,
+        description: desc.length ? desc : null,
+      },
     })
+    const result = await readAuthedJson<{ data: Transaction }>(res)
     setSaving(false)
-    if (error) {
-      toast.error(error.message || 'Something went wrong')
-      setFormError(error.message)
+    if (!result.ok) {
+      toast.error(result.message)
+      setFormError(result.message)
       return
     }
-    if (data) {
-      onSaved(data as Transaction)
-    }
+    onSaved(result.data.data)
     toast.success('Transaction updated')
     onClose()
   }

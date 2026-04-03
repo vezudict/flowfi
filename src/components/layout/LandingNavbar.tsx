@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { BrandLogoLink } from '@/components/layout/BrandLogoLink'
+import { useAuth } from '@/contexts/auth-context'
 import { useCallback, useEffect, useState } from 'react'
 
 function scrollToSection(id: string) {
@@ -12,6 +13,7 @@ function scrollToSection(id: string) {
 
 export function LandingNavbar() {
   const pathname = usePathname()
+  const { user } = useAuth()
   const [mobileOpen, setMobileOpen] = useState(false)
 
   useEffect(() => {
@@ -75,7 +77,7 @@ export function LandingNavbar() {
               className="rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-zinc-900 transition-[transform,background-color] duration-150 hover:bg-zinc-100 active:scale-[0.97]"
               onClick={() => setMobileOpen(false)}
             >
-              Get Started
+              {user ? 'Go to Dashboard' : 'Get Started'}
             </Link>
 
             <button

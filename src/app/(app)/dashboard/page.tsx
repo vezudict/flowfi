@@ -14,7 +14,8 @@ import { TransactionEditModal } from '@/components/dashboard/TransactionEditModa
 import { Modal } from '@/components/ui/Modal'
 import { useAuth } from '@/contexts/auth-context'
 import { useCurrency } from '@/contexts/currency-context'
-import { fetchProfileBudget, updateMonthlyBudget } from '@/lib/profile-budget'
+import { fetchProfileBudget } from '@/lib/profile-budget'
+import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { formatCurrency } from '@/lib/format-currency'
@@ -35,7 +36,6 @@ import {
 import {
   deleteTransaction,
   fetchTransactionsForUser,
-  insertTransaction,
   type Transaction,
 } from '@/lib/transactions'
 import { toast } from 'sonner'
@@ -231,9 +231,13 @@ export default function DashboardPage() {
 
   async function handleSaveMonthlyBudget(amount: number | null) {
     if (!user) return { error: 'Not signed in' }
-    const { error } = await updateMonthlyBudget(user.id, amount)
-    if (error) {
-      return { error: error.message }
+    const res = await authedFetch('/api/profile/budget', {
+      method: 'PATCH',
+      json: { monthlyBudget: amount },
+    })
+    const result = await readAuthedJson<{ ok: boolean }>(res)
+    if (!result.ok) {
+      return { error: result.message }
     }
     setMonthlyBudget(amount)
     return { error: null }
@@ -259,18 +263,21 @@ export default function DashboardPage() {
 
     setSubmitting(true)
     const desc = description.trim()
-    const { error: insertError } = await insertTransaction({
-      userId: user.id,
-      amount: parsed,
-      category: cat,
-      description: desc.length ? desc : null,
+    const res = await authedFetch('/api/transactions', {
+      method: 'POST',
+      json: {
+        amount: parsed,
+        category: cat,
+        description: desc.length ? desc : null,
+      },
     })
+    const insertResult = await readAuthedJson<{ data: Transaction }>(res)
     setSubmitting(false)
 
-    if (insertError) {
-      console.error('[dashboard] insert transaction:', insertError)
-      toast.error(insertError.message || 'Something went wrong')
-      setError(insertError.message)
+    if (!insertResult.ok) {
+      console.error('[dashboard] insert transaction:', insertResult.message)
+      toast.error(insertResult.message)
+      setError(insertResult.message)
       return
     }
 

@@ -8,7 +8,7 @@ import {
   type CsvTransactionsPreview,
   type ParseTransactionCsvResult,
 } from '@/lib/csv-transactions'
-import { insertImportedTransactions } from '@/lib/transactions'
+import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { useAuth } from '@/contexts/auth-context'
 import { formatAmountPlain } from '@/lib/format-currency'
 
@@ -82,17 +82,22 @@ export function ImportTransactionsClient() {
     }
 
     setBusy(true)
-    const { error } = await insertImportedTransactions(user.id, toInsert)
+    const res = await authedFetch('/api/transactions/import', {
+      method: 'POST',
+      json: { rows: toInsert },
+    })
+    const importResult = await readAuthedJson<{ count: number }>(res)
     setBusy(false)
 
-    if (error) {
-      console.error('[import-transactions]', error)
-      setImportError(error.message)
+    if (!importResult.ok) {
+      console.error('[import-transactions]', importResult.message)
+      setImportError(importResult.message)
       return
     }
 
+    const n = importResult.data.count
     setImportSuccess(
-      `Imported ${toInsert.length} transaction${toInsert.length === 1 ? '' : 's'}.${invalidCount > 0 ? ` (${invalidCount} row${invalidCount === 1 ? '' : 's'} skipped due to errors.)` : ''}`,
+      `Imported ${n} transaction${n === 1 ? '' : 's'}.${invalidCount > 0 ? ` (${invalidCount} row${invalidCount === 1 ? '' : 's'} skipped due to errors.)` : ''}`,
     )
     setPreview(null)
     setFileName(null)

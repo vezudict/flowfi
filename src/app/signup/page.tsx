@@ -7,6 +7,7 @@ import { AuthBackLink } from '@/components/auth/AuthBackLink'
 import { AuthShell } from '@/components/auth/AuthShell'
 import { useAuth } from '@/contexts/auth-context'
 import { Loader2 } from 'lucide-react'
+import { preflightAuthAttempt } from '@/lib/authed-api'
 import { ensureUserProfile } from '@/lib/ensure-profile'
 import { supabase } from '@/lib/supabase'
 
@@ -30,6 +31,11 @@ export default function SignupPage() {
     setInfo(null)
     setLoading(true)
     try {
+      const gate = await preflightAuthAttempt()
+      if (!gate.ok) {
+        setError(gate.message)
+        return
+      }
       const { data, error: signError } = await supabase.auth.signUp({
         email,
         password,
