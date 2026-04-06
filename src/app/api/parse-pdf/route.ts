@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server'
+import { PDFParse } from 'pdf-parse'
 import {
   PUBLIC_ERROR_GENERIC,
   PUBLIC_ERROR_TOO_MANY_REQUESTS,
   PUBLIC_ERROR_UNAUTHORIZED,
 } from '@/lib/api-public-error'
-import { extractTextFromPdfBuffer } from '@/lib/pdf-extract-text'
 import {
   rateLimitConsumeDual,
   rateLimitKeyPdfParseIp,
@@ -13,7 +13,18 @@ import {
 import { getRequestIp } from '@/lib/request-ip'
 import { getBearerToken, requireUserFromBearer } from '@/lib/supabase-server'
 
-export const runtime = 'nodejs'
+export const runtime = "nodejs"
+
+/** pdf-parse v2 is class-based; this matches the v1 `const data = await pdfParse(buffer)` shape. */
+async function pdfParse(buffer: Buffer): Promise<{ text: string }> {
+  const parser = new PDFParse({ data: buffer })
+  try {
+    const result = await parser.getText()
+    return { text: result.text }
+  } finally {
+    await parser.destroy()
+  }
+}
 
 const MAX_BYTES = 5 * 1024 * 1024
 const PDF_MAGIC = Buffer.from('%PDF-')
@@ -51,49 +62,56 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Expected multipart form data with a PDF file.' }, { status: 400 })
     }
 
-    const entry = formData.get('file')
-    if (!entry || !(entry instanceof File)) {
-      return NextResponse.json({ error: 'No file uploaded. Use the field name "file".' }, { status: 400 })
+    const file = formData.get('file')
+    if (!file || !(file instanceof File)) {
+      return new Response(JSON.stringify({ error: 'No file uploaded' }), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    if (entry.size > MAX_BYTES) {
+    if (file.size > MAX_BYTES) {
       return NextResponse.json(
         { error: 'File is too large. Maximum size is 5 MB.' },
         { status: 400 },
       )
     }
 
-    const mimeOk = entry.type === 'application/pdf'
-    const extOk = entry.name.toLowerCase().endsWith('.pdf')
-    if (!mimeOk && !(entry.type === '' && extOk)) {
+    const mimeOk = file.type === 'application/pdf'
+    const extOk = file.name.toLowerCase().endsWith('.pdf')
+    if (!mimeOk && !(file.type === '' && extOk)) {
       return NextResponse.json(
         { error: 'Invalid file type. Please upload a PDF (application/pdf).' },
         { status: 400 },
       )
     }
 
-    const buffer = Buffer.from(await entry.arrayBuffer())
+    const arrayBuffer = await file.arrayBuffer()
+    const buffer = Buffer.from(arrayBuffer)
+
+    console.log("file:", file)
+    console.log("buffer length:", buffer.length)
+
     if (!looksLikePdf(buffer)) {
       return NextResponse.json({ error: 'This file is not a valid PDF.' }, { status: 400 })
     }
 
-    let text: string
+    let data: { text: string }
     try {
-      text = await extractTextFromPdfBuffer(buffer)
-    } catch (e) {
-      console.error('[api/parse-pdf] parse', e)
-      return NextResponse.json(
-        {
-          error:
-            'We could not read text from this PDF. It may be encrypted, damaged, or scanned as images only.',
-        },
-        { status: 422 },
-      )
+      data = await pdfParse(buffer)
+    } catch (err) {
+      console.error('[api/parse-pdf] parse', err)
+      return new Response(JSON.stringify({ error: 'Parsing failed' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' },
+      })
     }
 
-    return NextResponse.json({ text })
-  } catch (e) {
-    console.error('[api/parse-pdf]', e)
+    return Response.json({
+      text: data.text,
+    })
+  } catch (err) {
+    console.error('[api/parse-pdf]', err)
     return NextResponse.json({ error: PUBLIC_ERROR_GENERIC }, { status: 500 })
   }
 }

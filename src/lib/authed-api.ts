@@ -22,6 +22,10 @@ export async function authedFetch(
     headers.set('Content-Type', 'application/json')
     rest.body = JSON.stringify(json)
   }
+  // FormData: let the runtime set multipart boundary (never send application/json or manual Content-Type).
+  if (rest.body instanceof FormData) {
+    headers.delete('Content-Type')
+  }
   return fetch(input, { ...rest, headers })
 }
 

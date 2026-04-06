@@ -43,12 +43,12 @@ export function PdfBankStatementUpload() {
     setBusy(true)
     setFileName(file.name)
 
-    const body = new FormData()
-    body.set('file', file, file.name)
+    const formData = new FormData()
+    formData.append('file', file)
 
     const res = await authedFetch('/api/parse-pdf', {
       method: 'POST',
-      body,
+      body: formData,
     })
 
     const parsed = await readAuthedJson<{ text: string }>(res)
