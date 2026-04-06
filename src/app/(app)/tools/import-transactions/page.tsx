@@ -12,7 +12,8 @@ export default function ImportTransactionsPage() {
         <span className="font-mono text-zinc-800 dark:text-zinc-200">amount</span>. Categories are
         inferred from the description (e.g. Swiggy → Food), or taken from an optional{' '}
         <span className="font-mono text-zinc-800 dark:text-zinc-200">category</span> column when valid;
-        otherwise they default to Other. Review the preview, then import.
+        otherwise they default to Other. Review the preview, then import. You can also upload a bank
+        statement PDF to extract raw text (experimental).
       </p>
       <ImportTransactionsClient />
     </div>

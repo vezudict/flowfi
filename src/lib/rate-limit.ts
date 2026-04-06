@@ -173,3 +173,11 @@ export function rateLimitKeyCurrencyUser(userId: string): string {
 export function rateLimitKeyCurrencyIp(ip: string): string {
   return buildRateLimitKey('ip', ip, 'profile.currency')
 }
+
+export function rateLimitKeyPdfParseUser(userId: string): string {
+  return buildRateLimitKey('user', userId, 'pdf.parse')
+}
+
+export function rateLimitKeyPdfParseIp(ip: string): string {
+  return buildRateLimitKey('ip', ip, 'pdf.parse')
+}

@@ -3,13 +3,14 @@
 import { Loader2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useState } from 'react'
+import { PdfBankStatementUpload } from '@/components/tools/PdfBankStatementUpload'
+import { useAuth } from '@/contexts/auth-context'
+import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import {
   parseTransactionCsvFile,
   type CsvTransactionsPreview,
   type ParseTransactionCsvResult,
 } from '@/lib/csv-transactions'
-import { authedFetch, readAuthedJson } from '@/lib/authed-api'
-import { useAuth } from '@/contexts/auth-context'
 import { formatAmountPlain } from '@/lib/format-currency'
 
 export function ImportTransactionsClient() {
@@ -195,6 +196,8 @@ export function ImportTransactionsClient() {
         ) : null}
         </div>
       </section>
+
+      <PdfBankStatementUpload />
 
       {preview ? (
         <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
