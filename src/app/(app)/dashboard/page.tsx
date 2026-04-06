@@ -1,7 +1,9 @@
 'use client'
 
+import type { PointerEvent } from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
+import { AnimatePresence, motion } from 'framer-motion'
+import { Check, Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
@@ -19,6 +21,7 @@ import { fetchProfileBudget } from '@/lib/profile-budget'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
+import { type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
 import { computeFinancialHealthScore } from '@/lib/financial-health-score'
 import {
@@ -40,6 +43,204 @@ import {
   type Transaction,
 } from '@/lib/transactions'
 import { toast } from 'sonner'
+
+const premiumEase = [0.23, 1, 0.32, 1] as const
+
+type SelectableTransactionRowProps = {
+  tx: Transaction
+  isSelected: boolean
+  isRecurring: boolean
+  currency: SupportedCurrencyCode
+  deleteSubmitting: boolean
+  pendingDeleteId: string | undefined
+  onToggle: () => void
+  onEdit: () => void
+  onDelete: () => void
+}
+
+function SelectableTransactionRow({
+  tx,
+  isSelected,
+  isRecurring,
+  currency,
+  deleteSubmitting,
+  pendingDeleteId,
+  onToggle,
+  onEdit,
+  onDelete,
+}: SelectableTransactionRowProps) {
+  const [holdFilledIndicator, setHoldFilledIndicator] = useState(isSelected)
+  const [ripple, setRipple] = useState<{
+    x: number
+    y: number
+    id: number
+  } | null>(null)
+
+  useEffect(() => {
+    if (isSelected) setHoldFilledIndicator(true)
+  }, [isSelected])
+
+  /** Keeps row + dot styled until the check exit animation finishes */
+  const showSelectedChrome = isSelected || holdFilledIndicator
+
+  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0) return
+    const el = e.currentTarget
+    const r = el.getBoundingClientRect()
+    setRipple({
+      x: e.clientX - r.left,
+      y: e.clientY - r.top,
+      id: performance.now(),
+    })
+  }
+
+  return (
+    <li className="list-none px-0.5">
+      <motion.div
+        role="button"
+        tabIndex={0}
+        aria-pressed={isSelected}
+        aria-label={`${isSelected ? 'Deselect' : 'Select'} ${tx.category}`}
+        onClick={onToggle}
+        onPointerDown={handlePointerDown}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault()
+            onToggle()
+          }
+        }}
+        animate={{ scale: showSelectedChrome ? 1.004 : 1 }}
+        whileHover={{
+          scale: showSelectedChrome ? 1.006 : 1.009,
+          transition: { type: 'spring', stiffness: 520, damping: 32 },
+        }}
+        whileTap={{ scale: 0.988 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.88 }}
+        className={`group relative flex cursor-pointer gap-3 overflow-hidden rounded-xl border py-3 pl-3 pr-3 outline-none transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-visible:ring-2 focus-visible:ring-indigo-500/35 sm:gap-4 sm:pl-3.5 ${
+          showSelectedChrome
+            ? 'border-indigo-300/70 bg-indigo-50/70 shadow-[0_0_0_1px_rgba(99,102,241,0.12)] dark:border-indigo-500/35 dark:bg-indigo-950/35 dark:shadow-[0_0_24px_-8px_rgba(129,140,248,0.35)]'
+            : 'border-transparent bg-white/40 hover:border-zinc-200/80 hover:bg-zinc-50/90 hover:shadow-sm dark:bg-zinc-950/20 dark:hover:border-zinc-700/60 dark:hover:bg-zinc-900/45'
+        } `}
+      >
+        {ripple ? (
+          <motion.span
+            key={ripple.id}
+            aria-hidden
+            className="pointer-events-none absolute rounded-full bg-indigo-400/35 dark:bg-indigo-400/25"
+            style={{
+              left: ripple.x,
+              top: ripple.y,
+              width: 14,
+              height: 14,
+              marginLeft: -7,
+              marginTop: -7,
+            }}
+            initial={{ scale: 0.15, opacity: 0.42 }}
+            animate={{ scale: 6.5, opacity: 0 }}
+            transition={{ duration: 0.62, ease: premiumEase }}
+            onAnimationComplete={() => setRipple(null)}
+          />
+        ) : null}
+
+        <motion.span
+          className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+            showSelectedChrome
+              ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm dark:border-indigo-500 dark:bg-indigo-500'
+              : 'border-zinc-300 bg-white group-hover:border-indigo-400/65 group-hover:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] dark:border-zinc-600 dark:bg-zinc-900 dark:group-hover:border-indigo-500/55 dark:group-hover:shadow-[0_0_0_3px_rgba(129,140,248,0.12)]'
+          }`}
+          animate={
+            isSelected
+              ? { scale: [1, 1.12, 1] }
+              : { scale: 1 }
+          }
+          transition={
+            isSelected
+              ? { duration: 0.38, times: [0, 0.38, 1], ease: premiumEase }
+              : { duration: 0.22, ease: premiumEase }
+          }
+          aria-hidden
+        >
+          <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full">
+            {!showSelectedChrome ? (
+              <Check
+                className="pointer-events-none absolute h-3 w-3 stroke-[2.8] text-indigo-600/85 opacity-0 scale-[0.72] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:opacity-[0.34] group-hover:scale-95 dark:text-indigo-400/80"
+                aria-hidden
+              />
+            ) : null}
+            <AnimatePresence
+              initial={false}
+              onExitComplete={() => {
+                if (!isSelected) setHoldFilledIndicator(false)
+              }}
+            >
+              {isSelected ? (
+                <motion.span
+                  key="check-on"
+                  initial={{ scale: 0.12, opacity: 0, rotate: -32 }}
+                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
+                  exit={{ scale: 0.62, opacity: 0, rotate: 10 }}
+                  transition={{ type: 'spring', stiffness: 520, damping: 28 }}
+                  className="flex items-center justify-center"
+                >
+                  <Check className="h-3 w-3 stroke-[2.8] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
+                </motion.span>
+              ) : null}
+            </AnimatePresence>
+          </span>
+        </motion.span>
+
+        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+          <div className="min-w-0 flex-1">
+            <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
+              <span>{tx.category}</span>
+              {isRecurring ? (
+                <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                  Recurring
+                </span>
+              ) : null}
+            </p>
+            {tx.description ? (
+              <p className="mt-0.5 text-sm text-zinc-500/85 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-600/90 dark:text-zinc-400/85 dark:group-hover:text-zinc-300/90">
+                {tx.description}
+              </p>
+            ) : null}
+            <p className="mt-1 text-xs text-zinc-400/90 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-500 dark:text-zinc-500/90 dark:group-hover:text-zinc-400">
+              {new Date(tx.created_at).toLocaleString()}
+            </p>
+          </div>
+          <div
+            className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2"
+            onClick={(e) => e.stopPropagation()}
+            onPointerDown={(e) => e.stopPropagation()}
+          >
+            <p className="text-base font-semibold tabular-nums text-zinc-900 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-950 dark:text-zinc-100 dark:group-hover:text-white">
+              {formatCurrency(Math.abs(normalizeAmount(tx.amount)), currency)}
+            </p>
+            <div className="flex items-center gap-1">
+              <button
+                type="button"
+                onClick={onEdit}
+                className="rounded-lg p-2 text-zinc-500 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
+                aria-label={`Edit transaction ${tx.category}`}
+              >
+                <Pencil className="h-4 w-4" aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={onDelete}
+                disabled={deleteSubmitting && pendingDeleteId === tx.id}
+                className="rounded-lg p-2 text-zinc-500 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                aria-label={`Delete transaction ${tx.category}`}
+              >
+                <Trash2 className="h-4 w-4" aria-hidden />
+              </button>
+            </div>
+          </div>
+        </div>
+      </motion.div>
+    </li>
+  )
+}
 
 const inputClass =
   'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
@@ -86,7 +287,6 @@ export default function DashboardPage() {
   const [selectedIds, setSelectedIds] = useState<string[]>([])
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
-  const selectAllRef = useRef<HTMLInputElement>(null)
   const [txFilters, setTxFilters] = useState<TransactionFilterState>(emptyTransactionFilters)
 
   const [amount, setAmount] = useState('')
@@ -169,11 +369,6 @@ export default function DashboardPage() {
     return filteredTransactions.every((t) => selectedIds.includes(t.id))
   }, [filteredTransactions, selectedIds])
 
-  const someVisibleSelected = useMemo(() => {
-    const n = filteredTransactions.filter((t) => selectedIds.includes(t.id)).length
-    return n > 0 && n < filteredTransactions.length
-  }, [filteredTransactions, selectedIds])
-
   useEffect(() => {
     const allowed = new Set(filteredTransactions.map((t) => t.id))
     setSelectedIds((prev) => {
@@ -182,12 +377,6 @@ export default function DashboardPage() {
       return next
     })
   }, [filteredTransactions])
-
-  useEffect(() => {
-    const el = selectAllRef.current
-    if (!el) return
-    el.indeterminate = someVisibleSelected
-  }, [someVisibleSelected, filteredTransactions.length])
 
   function coerceMonthlyBudget(raw: unknown): number | null {
     if (raw === null || raw === undefined) return null
@@ -278,6 +467,10 @@ export default function DashboardPage() {
     })
   }
 
+  function clearSelection() {
+    setSelectedIds([])
+  }
+
   function openBulkDeleteModal() {
     if (selectedIds.length === 0) return
     setBulkDeleteIds([...selectedIds])
@@ -310,9 +503,6 @@ export default function DashboardPage() {
     if (editingTransaction && removed.has(editingTransaction.id)) setEditingTransaction(null)
     router.refresh()
   }
-
-  const checkboxClass =
-    'h-4 w-4 shrink-0 rounded border-zinc-300 text-indigo-600 transition-colors focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-indigo-500 dark:focus:ring-indigo-400/30'
 
   async function handleSaveMonthlyBudget(amount: number | null) {
     if (!user) return { error: 'Not signed in' }
@@ -742,114 +932,78 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="recent-activity-scroll mt-4 max-h-[min(420px,55vh)] overflow-y-auto scroll-smooth pr-3 [-webkit-overflow-scrolling:touch]">
-              <div className="sticky top-0 z-[1] flex items-center gap-3 border-b border-zinc-200/90 bg-white/95 px-1 py-2.5 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
-                <input
-                  ref={selectAllRef}
-                  type="checkbox"
-                  checked={allVisibleSelected}
-                  onChange={toggleSelectAllVisible}
-                  className={checkboxClass}
-                  aria-label="Select all visible transactions"
-                />
-                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
-                  Select all
-                </span>
+              <div className="sticky top-0 z-[1] flex items-center justify-end border-b border-zinc-200/90 bg-white/90 px-2 py-2.5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90">
+                <motion.button
+                  type="button"
+                  onClick={toggleSelectAllVisible}
+                  whileTap={{ scale: 0.96 }}
+                  transition={{ type: 'spring', stiffness: 520, damping: 32 }}
+                  className="rounded-full px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
+                >
+                  {allVisibleSelected ? 'Clear selection' : 'Select all'}
+                </motion.button>
               </div>
-              <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {filteredTransactions.map((tx) => {
-                  const isSelected = selectedIds.includes(tx.id)
-                  return (
-                    <li
-                      key={tx.id}
-                      className={`flex gap-3 py-4 pl-1 pr-0 transition-colors duration-200 first:pt-3 last:pb-0 sm:gap-4 ${
-                        isSelected
-                          ? 'bg-indigo-50/50 dark:bg-indigo-950/25'
-                          : 'hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20'
-                      }`}
-                    >
-                      <div className="flex shrink-0 items-start pt-0.5 sm:pt-1">
-                        <input
-                          type="checkbox"
-                          checked={isSelected}
-                          onChange={() => toggleTransactionSelected(tx.id)}
-                          className={checkboxClass}
-                          aria-label={`Select ${tx.category}`}
-                        />
-                      </div>
-                      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                        <div className="min-w-0 flex-1">
-                          <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
-                            <span>{tx.category}</span>
-                            {recurringTransactionIds.has(tx.id) ? (
-                              <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                                Recurring
-                              </span>
-                            ) : null}
-                          </p>
-                          {tx.description ? (
-                            <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
-                              {tx.description}
-                            </p>
-                          ) : null}
-                          <p className="mt-1 text-xs text-zinc-400/90 dark:text-zinc-500/90">
-                            {new Date(tx.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                        <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                          <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                            {formatCurrency(
-                              Math.abs(normalizeAmount(tx.amount)),
-                              currency,
-                            )}
-                          </p>
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => setEditingTransaction(tx)}
-                              className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
-                              aria-label={`Edit transaction ${tx.category}`}
-                            >
-                              <Pencil className="h-4 w-4" aria-hidden />
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setPendingDelete(tx)}
-                              disabled={deleteSubmitting && pendingDelete?.id === tx.id}
-                              className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                              aria-label={`Delete transaction ${tx.category}`}
-                            >
-                              <Trash2 className="h-4 w-4" aria-hidden />
-                            </button>
-                          </div>
-                        </div>
-                      </div>
-                    </li>
-                  )
-                })}
+              <ul className="space-y-1.5 pb-1 pt-2">
+                {filteredTransactions.map((tx) => (
+                  <SelectableTransactionRow
+                    key={tx.id}
+                    tx={tx}
+                    isSelected={selectedIds.includes(tx.id)}
+                    isRecurring={recurringTransactionIds.has(tx.id)}
+                    currency={currency}
+                    deleteSubmitting={deleteSubmitting}
+                    pendingDeleteId={pendingDelete?.id}
+                    onToggle={() => toggleTransactionSelected(tx.id)}
+                    onEdit={() => setEditingTransaction(tx)}
+                    onDelete={() => setPendingDelete(tx)}
+                  />
+                ))}
               </ul>
             </div>
           )}
         </div>
       </div>
 
-      {selectedIds.length > 0 ? (
-        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[90] flex justify-center px-4 pb-4 pt-2 sm:pb-6">
-          <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-md transition-[transform,box-shadow] duration-200 dark:border-zinc-700 dark:bg-zinc-950/95">
-            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
-              <span className="tabular-nums">{selectedIds.length}</span> selected
-            </p>
-            <button
-              type="button"
-              onClick={openBulkDeleteModal}
-              disabled={bulkDeleteSubmitting}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
-            >
-              <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
-              Delete selected
-            </button>
-          </div>
-        </div>
-      ) : null}
+      <AnimatePresence>
+        {selectedIds.length > 0 ? (
+          <motion.div
+            key="bulk-bar"
+            initial={{ y: -20, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -16, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.23, 1, 0.32, 1] }}
+            className="pointer-events-none fixed inset-x-0 top-14 z-[90] flex justify-center px-4 pt-3"
+          >
+            <div className="pointer-events-auto flex w-full max-w-xl items-center justify-between gap-3 rounded-2xl border border-zinc-200/80 bg-white/75 px-4 py-3 shadow-[0_8px_30px_-12px_rgba(0,0,0,0.22)] backdrop-blur-xl dark:border-zinc-700/80 dark:bg-zinc-950/75 dark:shadow-[0_12px_40px_-16px_rgba(0,0,0,0.65)]">
+              <p className="text-sm font-medium tracking-tight text-zinc-800 dark:text-zinc-100">
+                <span className="tabular-nums font-semibold text-indigo-600 dark:text-indigo-400">
+                  {selectedIds.length}
+                </span>{' '}
+                <span className="text-zinc-500 dark:text-zinc-400">selected</span>
+              </p>
+              <div className="flex shrink-0 items-center gap-2">
+                <button
+                  type="button"
+                  onClick={clearSelection}
+                  disabled={bulkDeleteSubmitting}
+                  className="rounded-lg border border-zinc-200/90 bg-white/60 px-3 py-2 text-xs font-medium text-zinc-600 transition-all duration-200 ease-out hover:bg-zinc-50 disabled:opacity-50 dark:border-zinc-600 dark:bg-zinc-900/50 dark:text-zinc-300 dark:hover:bg-zinc-800/80"
+                >
+                  Clear
+                </button>
+                <button
+                  type="button"
+                  onClick={openBulkDeleteModal}
+                  disabled={bulkDeleteSubmitting}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600/95 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-rose-600/90 dark:hover:bg-rose-500/95"
+                >
+                  <Trash2 className="h-3.5 w-3.5 shrink-0 opacity-95" aria-hidden />
+                  Delete
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
 
       <TransactionEditModal
         transaction={editingTransaction}
