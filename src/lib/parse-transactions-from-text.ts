@@ -3,11 +3,20 @@
  * Splits on date anchors; last numeric token in each block is treated as running balance (ignored).
  */
 
+export type TransactionCategory =
+  | 'food'
+  | 'transport'
+  | 'income'
+  | 'bills'
+  | 'groceries'
+  | 'other'
+
 export type Transaction = {
   date: string
   description: string
   amount: number
   type: 'credit' | 'debit'
+  category: TransactionCategory
 }
 
 /** Date token: DD-MMM-YYYY (day may be 1–2 digits). */
@@ -54,12 +63,42 @@ function inferType(afterDate: string, firstNumIndex: number): 'credit' | 'debit'
   return prefix.trimEnd().endsWith('-') ? 'credit' : 'debit'
 }
 
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0, feb: 1, mar: 2,  apr: 3,  may: 4,  jun: 5,
+  jul: 6, aug: 7, sep: 8,  oct: 9,  nov: 10, dec: 11,
+}
+
+/** Convert `DD-MMM-YYYY` → `YYYY-MM-DD`. */
 function normalizeDateForOutput(raw: string): string {
   const m = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/i)
   if (!m) return raw.trim()
+  const mi = MONTH_INDEX[m[2].toLowerCase()]
+  if (mi === undefined) return raw.trim()
   const day = m[1].padStart(2, '0')
-  const mon = m[2].slice(0, 1).toUpperCase() + m[2].slice(1, 3).toLowerCase()
-  return `${day}-${mon}-${m[3]}`
+  const month = String(mi + 1).padStart(2, '0')
+  return `${m[3]}-${month}-${day}`
+}
+
+const REDUNDANT_WORDS = /\b(upi|payment|credit|debit|ride|transfer)\b\s*/gi
+
+/** Strip UPI prefix and generic banking words; collapse whitespace. */
+function normalizeDescription(desc: string): string {
+  return desc.replace(REDUNDANT_WORDS, '').replace(/\s+/g, ' ').trim()
+}
+
+const CATEGORY_RULES: Array<{ pattern: RegExp; category: TransactionCategory }> = [
+  { pattern: /\b(swiggy|zomato)\b/i, category: 'food' },
+  { pattern: /\b(uber|fuel|petrol|diesel)\b/i, category: 'transport' },
+  { pattern: /\b(salary|freelance)\b/i, category: 'income' },
+  { pattern: /\b(electricity|internet|bill)\b/i, category: 'bills' },
+  { pattern: /\b(grocery|groceries)\b/i, category: 'groceries' },
+]
+
+function detectCategory(description: string): TransactionCategory {
+  for (const { pattern, category } of CATEGORY_RULES) {
+    if (pattern.test(description)) return category
+  }
+  return 'other'
 }
 
 /** Strip all amounts; tidy stray hyphens from patterns like "Credit-". */
@@ -166,40 +205,43 @@ export function parseTransactionsFromText(text: string): Transaction[] {
 
     if (amount === null || amount <= 0) continue
 
-    const description = cleanDescription(afterDate)
-    if (!description) continue
-    if (SKIP_SUBSTRING.test(description)) continue
-    if (HEADER_LIKE.test(description)) continue
+    const rawDesc = cleanDescription(afterDate)
+    if (!rawDesc) continue
+    if (SKIP_SUBSTRING.test(rawDesc)) continue
+    if (HEADER_LIKE.test(rawDesc)) continue
 
-    out.push({ date, description, amount, type })
+    const description = normalizeDescription(rawDesc)
+    const category = detectCategory(rawDesc) // run on pre-normalized text for better keyword coverage
+
+    out.push({ date, description, amount, type, category })
   }
 
   console.log('[parseTransactionsFromText] result', out)
   return out
 }
 
-const MONTH_INDEX: Record<string, number> = {
-  jan: 0,
-  feb: 1,
-  mar: 2,
-  apr: 3,
-  may: 4,
-  jun: 5,
-  jul: 6,
-  aug: 7,
-  sep: 8,
-  oct: 9,
-  nov: 10,
-  dec: 11,
-}
-
-/** Parse `DD-MMM-YYYY` (e.g. `02-Apr-2026`) to ISO-8601 for API `createdAt`. */
+/**
+ * Parse a date string to ISO-8601 for API `createdAt`.
+ * Accepts both `YYYY-MM-DD` (new parser output) and `DD-MMM-YYYY` (legacy).
+ */
 export function parsePdfStatementDateToIso(raw: string): string | null {
-  const m = raw.trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/)
-  if (!m) return null
-  const day = Number(m[1])
-  const mi = MONTH_INDEX[m[2].toLowerCase()]
-  const year = Number(m[3])
+  const s = raw.trim()
+
+  // YYYY-MM-DD
+  const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})$/)
+  if (iso) {
+    const year = Number(iso[1]), mi = Number(iso[2]) - 1, day = Number(iso[3])
+    const d = new Date(year, mi, day, 12, 0, 0, 0)
+    if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
+    return d.toISOString()
+  }
+
+  // DD-MMM-YYYY (legacy)
+  const legacy = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/)
+  if (!legacy) return null
+  const day = Number(legacy[1])
+  const mi = MONTH_INDEX[legacy[2].toLowerCase()]
+  const year = Number(legacy[3])
   if (mi === undefined || !Number.isFinite(day) || !Number.isFinite(year)) return null
   const d = new Date(year, mi, day, 12, 0, 0, 0)
   if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
