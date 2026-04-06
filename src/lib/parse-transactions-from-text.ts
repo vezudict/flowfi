@@ -1,6 +1,6 @@
 /**
  * Regex-first PDF statement parser — does not rely on spaces.
- * Splits on date anchors, then takes the last numeric token as amount.
+ * Splits on date anchors; last numeric token in each block is treated as running balance (ignored).
  */
 
 export type Transaction = {
@@ -18,21 +18,26 @@ const SKIP_SUBSTRING = /opening balance|closing balance/i
 const HEADER_LIKE =
   /^(date|description|amount|balance|particulars|transaction|sl\.?\s*no|withdrawal|deposit)\b/i
 
-/** Last numeric token in a segment (commas allowed; optional leading + / -). */
-function findLastNumericToken(s: string): {
-  raw: string
-  signed: number
-  index: number
-} | null {
+const CREDIT_KEYWORDS = /\b(credit|salary|deposit)\b/i
+
+type NumTok = { raw: string; signed: number; index: number }
+
+function findAllNumericTokens(s: string): NumTok[] {
   const re = /[-+]?\d[\d,]*(?:\.\d+)?/g
+  const out: NumTok[] = []
   let m: RegExpExecArray | null
-  let last: RegExpExecArray | null = null
-  while ((m = re.exec(s)) !== null) last = m
-  if (!last) return null
-  const raw = last[0]
-  const signed = Number.parseFloat(raw.replace(/,/g, ''))
-  if (!Number.isFinite(signed)) return null
-  return { raw, signed, index: last.index }
+  while ((m = re.exec(s)) !== null) {
+    const raw = m[0]
+    const signed = Number.parseFloat(raw.replace(/,/g, ''))
+    if (Number.isFinite(signed)) {
+      out.push({ raw, signed, index: m.index })
+    }
+  }
+  return out
+}
+
+function inferType(descOrLine: string): 'credit' | 'debit' {
+  return CREDIT_KEYWORDS.test(descOrLine) ? 'credit' : 'debit'
 }
 
 function normalizeDateForOutput(raw: string): string {
@@ -43,11 +48,40 @@ function normalizeDateForOutput(raw: string): string {
   return `${day}-${mon}-${m[3]}`
 }
 
-function cleanDescription(beforeAmount: string): string {
-  return beforeAmount
+/** Strip all amounts; tidy stray hyphens from patterns like "Credit-". */
+function cleanDescription(full: string): string {
+  return full
     .replace(/[-+]?\d[\d,]*(?:\.\d+)?/g, ' ')
+    .replace(/[–—-]+\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
+}
+
+/** Pick transaction amount from candidates (all numeric tokens before balance). */
+function pickTransactionAmount(
+  candidates: NumTok[],
+  type: 'credit' | 'debit',
+): number | null {
+  if (candidates.length === 0) return null
+
+  if (candidates.length === 1) {
+    const n = Math.abs(candidates[0].signed)
+    return n > 0 ? n : null
+  }
+
+  // Rare: debit column then credit column before balance.
+  const debitCol = Math.abs(candidates[0].signed)
+  const creditCol = Math.abs(candidates[1].signed)
+
+  if (type === 'credit') {
+    if (creditCol > 0) return creditCol
+    if (debitCol > 0) return debitCol
+    return null
+  }
+
+  if (debitCol > 0) return debitCol
+  if (creditCol > 0) return creditCol
+  return null
 }
 
 export function parseTransactionsFromText(text: string): Transaction[] {
@@ -78,23 +112,55 @@ export function parseTransactionsFromText(text: string): Transaction[] {
     const date = normalizeDateForOutput(dm[1])
     const afterDate = block.slice(dm[0].length)
 
-    const lastNum = findLastNumericToken(afterDate)
-    if (!lastNum || lastNum.signed === 0) continue
+    const allNums = findAllNumericTokens(afterDate)
+    if (allNums.length === 0) continue
 
-    const descRaw = afterDate.slice(0, lastNum.index).trim()
-    const description = cleanDescription(descRaw)
+    const type = inferType(afterDate)
+    let amount: number | null = null
+    let balanceIgnored: string | null = null
+    let candidateRaws: string[]
 
+    if (allNums.length === 1) {
+      // No running balance on this fragment — sole token is the transaction amount.
+      candidateRaws = [allNums[0].raw]
+      amount = Math.abs(allNums[0].signed)
+      console.log('[parseTransactionsFromText]', {
+        date,
+        extractedNumbers: allNums.map((t) => t.raw),
+        balanceIgnored: null,
+        candidateRaws,
+        chosenAmount: amount,
+        type,
+        note: 'single token (no balance column)',
+      })
+    } else {
+      const balance = allNums[allNums.length - 1]
+      balanceIgnored = balance.raw
+      const candidates = allNums.slice(0, -1)
+      candidateRaws = candidates.map((t) => t.raw)
+      amount = pickTransactionAmount(candidates, type)
+
+      console.log('[parseTransactionsFromText]', {
+        date,
+        extractedNumbers: allNums.map((t) => t.raw),
+        balanceIgnored,
+        candidateRaws,
+        chosenAmount: amount,
+        type,
+      })
+    }
+
+    if (amount === null || amount <= 0) continue
+
+    const description = cleanDescription(afterDate)
     if (!description) continue
     if (SKIP_SUBSTRING.test(description)) continue
     if (HEADER_LIKE.test(description)) continue
 
-    const amount = Math.abs(lastNum.signed)
-    const type: 'credit' | 'debit' = lastNum.signed < 0 ? 'debit' : 'credit'
-
     out.push({ date, description, amount, type })
   }
 
-  console.log('[parseTransactionsFromText]', out)
+  console.log('[parseTransactionsFromText] result', out)
   return out
 }
 
