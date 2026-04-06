@@ -18,26 +18,40 @@ const SKIP_SUBSTRING = /opening balance|closing balance/i
 const HEADER_LIKE =
   /^(date|description|amount|balance|particulars|transaction|sl\.?\s*no|withdrawal|deposit)\b/i
 
-const CREDIT_KEYWORDS = /\b(credit|salary|deposit)\b/i
-
 type NumTok = { raw: string; signed: number; index: number }
 
+/**
+ * Indian-number aware tokeniser. Uses `\d{1,3}(?:,\d{2,3})*` so that two
+ * concatenated amounts like `50,00073,550` are split into `50,000` + `73,550`
+ * instead of being swallowed as one malformed token by a greedy `[\d,]*`.
+ */
 function findAllNumericTokens(s: string): NumTok[] {
-  const re = /[-+]?\d[\d,]*(?:\.\d+)?/g
+  const re = /\d{1,3}(?:,\d{2,3})*(?:\.\d+)?/g
   const out: NumTok[] = []
   let m: RegExpExecArray | null
   while ((m = re.exec(s)) !== null) {
     const raw = m[0]
     const signed = Number.parseFloat(raw.replace(/,/g, ''))
-    if (Number.isFinite(signed)) {
+    if (Number.isFinite(signed) && signed > 0) {
       out.push({ raw, signed, index: m.index })
     }
   }
   return out
 }
 
-function inferType(descOrLine: string): 'credit' | 'debit' {
-  return CREDIT_KEYWORDS.test(descOrLine) ? 'credit' : 'debit'
+/**
+ * Structural credit/debit detection for no-space Indian bank formats.
+ *
+ * SBI (and similar) PDF text concatenates columns without spaces:
+ *   Debit row : <desc><debit_amt>-<balance>   → prefix before first number ends with a letter
+ *   Credit row: <desc>-<credit_amt><balance>  → prefix before first number ends with "-"
+ *
+ * The trailing "-" is the empty debit column.  This handles edge cases like
+ * "Freelance Payment" that keyword lists would miss.
+ */
+function inferType(afterDate: string, firstNumIndex: number): 'credit' | 'debit' {
+  const prefix = afterDate.slice(0, firstNumIndex)
+  return prefix.trimEnd().endsWith('-') ? 'credit' : 'debit'
 }
 
 function normalizeDateForOutput(raw: string): string {
@@ -51,7 +65,7 @@ function normalizeDateForOutput(raw: string): string {
 /** Strip all amounts; tidy stray hyphens from patterns like "Credit-". */
 function cleanDescription(full: string): string {
   return full
-    .replace(/[-+]?\d[\d,]*(?:\.\d+)?/g, ' ')
+    .replace(/\d{1,3}(?:,\d{2,3})*(?:\.\d+)?/g, ' ')
     .replace(/[–—-]+\s*/g, ' ')
     .replace(/\s+/g, ' ')
     .trim()
@@ -115,7 +129,7 @@ export function parseTransactionsFromText(text: string): Transaction[] {
     const allNums = findAllNumericTokens(afterDate)
     if (allNums.length === 0) continue
 
-    const type = inferType(afterDate)
+    const type = inferType(afterDate, allNums[0].index)
     let amount: number | null = null
     let balanceIgnored: string | null = null
     let candidateRaws: string[]
