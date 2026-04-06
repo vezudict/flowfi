@@ -83,6 +83,10 @@ export default function DashboardPage() {
   const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Transaction | null>(null)
   const [deleteSubmitting, setDeleteSubmitting] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<string[]>([])
+  const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
+  const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
+  const selectAllRef = useRef<HTMLInputElement>(null)
   const [txFilters, setTxFilters] = useState<TransactionFilterState>(emptyTransactionFilters)
 
   const [amount, setAmount] = useState('')
@@ -160,6 +164,31 @@ export default function DashboardPage() {
 
   const activeFilterCount = useMemo(() => countActiveFilters(txFilters), [txFilters])
 
+  const allVisibleSelected = useMemo(() => {
+    if (filteredTransactions.length === 0) return false
+    return filteredTransactions.every((t) => selectedIds.includes(t.id))
+  }, [filteredTransactions, selectedIds])
+
+  const someVisibleSelected = useMemo(() => {
+    const n = filteredTransactions.filter((t) => selectedIds.includes(t.id)).length
+    return n > 0 && n < filteredTransactions.length
+  }, [filteredTransactions, selectedIds])
+
+  useEffect(() => {
+    const allowed = new Set(filteredTransactions.map((t) => t.id))
+    setSelectedIds((prev) => {
+      const next = prev.filter((id) => allowed.has(id))
+      if (next.length === prev.length && next.every((id, i) => id === prev[i])) return prev
+      return next
+    })
+  }, [filteredTransactions])
+
+  useEffect(() => {
+    const el = selectAllRef.current
+    if (!el) return
+    el.indeterminate = someVisibleSelected
+  }, [someVisibleSelected, filteredTransactions.length])
+
   function coerceMonthlyBudget(raw: unknown): number | null {
     if (raw === null || raw === undefined) return null
     const n = typeof raw === 'number' ? raw : Number(raw)
@@ -222,6 +251,7 @@ export default function DashboardPage() {
     }
     toast.success('Transaction deleted')
     setTransactions((prev) => prev.filter((t) => t.id !== tx.id))
+    setSelectedIds((prev) => prev.filter((id) => id !== tx.id))
     if (editingTransaction?.id === tx.id) setEditingTransaction(null)
   }
 
@@ -229,6 +259,60 @@ export default function DashboardPage() {
     if (deleteSubmitting) return
     setPendingDelete(null)
   }
+
+  function toggleTransactionSelected(id: string) {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    )
+  }
+
+  function toggleSelectAllVisible() {
+    const ids = filteredTransactions.map((t) => t.id)
+    if (ids.length === 0) return
+    setSelectedIds((prev) => {
+      const allOn = ids.every((id) => prev.includes(id))
+      if (allOn) return prev.filter((id) => !ids.includes(id))
+      const set = new Set(prev)
+      ids.forEach((id) => set.add(id))
+      return Array.from(set)
+    })
+  }
+
+  function openBulkDeleteModal() {
+    if (selectedIds.length === 0) return
+    setBulkDeleteIds([...selectedIds])
+  }
+
+  function closeBulkDeleteModal() {
+    if (bulkDeleteSubmitting) return
+    setBulkDeleteIds(null)
+  }
+
+  async function confirmBulkDelete() {
+    if (!bulkDeleteIds?.length || !user) return
+    setBulkDeleteSubmitting(true)
+    const res = await authedFetch('/api/transactions/bulk', {
+      method: 'DELETE',
+      json: { ids: bulkDeleteIds },
+    })
+    const result = await readAuthedJson<{ count: number }>(res)
+    setBulkDeleteSubmitting(false)
+    if (!result.ok) {
+      toast.error(result.message)
+      return
+    }
+    const n = result.data.count
+    toast.success(`Deleted ${n} transaction${n === 1 ? '' : 's'}`)
+    const removed = new Set(bulkDeleteIds)
+    setTransactions((prev) => prev.filter((t) => !removed.has(t.id)))
+    setSelectedIds([])
+    setBulkDeleteIds(null)
+    if (editingTransaction && removed.has(editingTransaction.id)) setEditingTransaction(null)
+    router.refresh()
+  }
+
+  const checkboxClass =
+    'h-4 w-4 shrink-0 rounded border-zinc-300 text-indigo-600 transition-colors focus:ring-2 focus:ring-indigo-500/30 dark:border-zinc-600 dark:bg-zinc-900 dark:text-indigo-500 dark:focus:ring-indigo-400/30'
 
   async function handleSaveMonthlyBudget(amount: number | null) {
     if (!user) return { error: 'Not signed in' }
@@ -658,69 +742,154 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="recent-activity-scroll mt-4 max-h-[min(420px,55vh)] overflow-y-auto scroll-smooth pr-3 [-webkit-overflow-scrolling:touch]">
+              <div className="sticky top-0 z-[1] flex items-center gap-3 border-b border-zinc-200/90 bg-white/95 px-1 py-2.5 backdrop-blur-sm dark:border-zinc-800 dark:bg-zinc-950/95">
+                <input
+                  ref={selectAllRef}
+                  type="checkbox"
+                  checked={allVisibleSelected}
+                  onChange={toggleSelectAllVisible}
+                  className={checkboxClass}
+                  aria-label="Select all visible transactions"
+                />
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Select all
+                </span>
+              </div>
               <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {filteredTransactions.map((tx) => (
-                  <li
-                    key={tx.id}
-                    className="flex flex-col gap-2 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-start sm:justify-between"
-                  >
-                    <div className="min-w-0 flex-1">
-                      <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
-                        <span>{tx.category}</span>
-                        {recurringTransactionIds.has(tx.id) ? (
-                          <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                            Recurring
-                          </span>
-                        ) : null}
-                      </p>
-                      {tx.description ? (
-                        <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
-                          {tx.description}
-                        </p>
-                      ) : null}
-                      <p className="mt-1 text-xs text-zinc-400/90 dark:text-zinc-500/90">
-                        {new Date(tx.created_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
-                      <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
-                        {formatCurrency(
-                          Math.abs(normalizeAmount(tx.amount)),
-                          currency,
-                        )}
-                      </p>
-                      <div className="flex items-center gap-1">
-                        <button
-                          type="button"
-                          onClick={() => setEditingTransaction(tx)}
-                          className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
-                          aria-label={`Edit transaction ${tx.category}`}
-                        >
-                          <Pencil className="h-4 w-4" aria-hidden />
-                        </button>
-                      <button
-                        type="button"
-                        onClick={() => setPendingDelete(tx)}
-                        disabled={deleteSubmitting && pendingDelete?.id === tx.id}
-                        className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                        aria-label={`Delete transaction ${tx.category}`}
-                      >
-                        <Trash2 className="h-4 w-4" aria-hidden />
-                      </button>
+                {filteredTransactions.map((tx) => {
+                  const isSelected = selectedIds.includes(tx.id)
+                  return (
+                    <li
+                      key={tx.id}
+                      className={`flex gap-3 py-4 pl-1 pr-0 transition-colors duration-200 first:pt-3 last:pb-0 sm:gap-4 ${
+                        isSelected
+                          ? 'bg-indigo-50/50 dark:bg-indigo-950/25'
+                          : 'hover:bg-zinc-50/50 dark:hover:bg-zinc-900/20'
+                      }`}
+                    >
+                      <div className="flex shrink-0 items-start pt-0.5 sm:pt-1">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleTransactionSelected(tx.id)}
+                          className={checkboxClass}
+                          aria-label={`Select ${tx.category}`}
+                        />
                       </div>
-                    </div>
-                  </li>
-                ))}
+                      <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0 flex-1">
+                          <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
+                            <span>{tx.category}</span>
+                            {recurringTransactionIds.has(tx.id) ? (
+                              <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
+                                Recurring
+                              </span>
+                            ) : null}
+                          </p>
+                          {tx.description ? (
+                            <p className="mt-0.5 text-sm text-zinc-500/85 dark:text-zinc-400/85">
+                              {tx.description}
+                            </p>
+                          ) : null}
+                          <p className="mt-1 text-xs text-zinc-400/90 dark:text-zinc-500/90">
+                            {new Date(tx.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2">
+                          <p className="text-base font-semibold tabular-nums text-zinc-900 dark:text-zinc-100">
+                            {formatCurrency(
+                              Math.abs(normalizeAmount(tx.amount)),
+                              currency,
+                            )}
+                          </p>
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setEditingTransaction(tx)}
+                              className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-zinc-100 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800 dark:hover:text-indigo-400"
+                              aria-label={`Edit transaction ${tx.category}`}
+                            >
+                              <Pencil className="h-4 w-4" aria-hidden />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPendingDelete(tx)}
+                              disabled={deleteSubmitting && pendingDelete?.id === tx.id}
+                              className="rounded-lg p-2 text-zinc-500 transition-all duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
+                              aria-label={`Delete transaction ${tx.category}`}
+                            >
+                              <Trash2 className="h-4 w-4" aria-hidden />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </li>
+                  )
+                })}
               </ul>
             </div>
           )}
         </div>
       </div>
 
+      {selectedIds.length > 0 ? (
+        <div className="pointer-events-none fixed inset-x-0 bottom-0 z-[90] flex justify-center px-4 pb-4 pt-2 sm:pb-6">
+          <div className="pointer-events-auto flex w-full max-w-md items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white/95 px-4 py-3 shadow-lg backdrop-blur-md transition-[transform,box-shadow] duration-200 dark:border-zinc-700 dark:bg-zinc-950/95">
+            <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+              <span className="tabular-nums">{selectedIds.length}</span> selected
+            </p>
+            <button
+              type="button"
+              onClick={openBulkDeleteModal}
+              disabled={bulkDeleteSubmitting}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
+            >
+              <Trash2 className="h-4 w-4 shrink-0" aria-hidden />
+              Delete selected
+            </button>
+          </div>
+        </div>
+      ) : null}
+
       <TransactionEditModal
         transaction={editingTransaction}
         onClose={() => setEditingTransaction(null)}
         onSaved={handleTransactionSaved}
+      />
+
+      <Modal
+        open={!!bulkDeleteIds?.length}
+        onClose={closeBulkDeleteModal}
+        title="Delete transactions?"
+        description={
+          bulkDeleteIds?.length
+            ? `Delete ${bulkDeleteIds.length} transaction${bulkDeleteIds.length === 1 ? '' : 's'}? This cannot be undone.`
+            : undefined
+        }
+        titleId="bulk-delete-tx-title"
+        footer={
+          <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button
+              type="button"
+              disabled={bulkDeleteSubmitting}
+              onClick={closeBulkDeleteModal}
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              disabled={bulkDeleteSubmitting}
+              onClick={() => void confirmBulkDelete()}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
+            >
+              {bulkDeleteSubmitting ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+              ) : null}
+              Delete
+            </button>
+          </div>
+        }
       />
 
       <Modal

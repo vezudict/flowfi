@@ -148,3 +148,39 @@ export function parseAndValidateImportBody(
 
   return { ok: true, data: out }
 }
+
+const MAX_BULK_DELETE_IDS = 500
+
+export function parseAndValidateBulkTransactionDelete(
+  raw: unknown,
+): { ok: true; ids: string[] } | { ok: false; message: string } {
+  if (raw === null || typeof raw !== 'object') {
+    return { ok: false, message: 'Invalid request body.' }
+  }
+  const idsRaw = (raw as Record<string, unknown>).ids
+  if (!Array.isArray(idsRaw)) {
+    return { ok: false, message: 'Expected ids array.' }
+  }
+  if (idsRaw.length === 0) {
+    return { ok: false, message: 'No transactions selected.' }
+  }
+  if (idsRaw.length > MAX_BULK_DELETE_IDS) {
+    return { ok: false, message: `At most ${MAX_BULK_DELETE_IDS} transactions per request.` }
+  }
+  const seen = new Set<string>()
+  const ids: string[] = []
+  for (let i = 0; i < idsRaw.length; i++) {
+    const id = idsRaw[i]
+    if (typeof id !== 'string' || !id.trim()) {
+      return { ok: false, message: `Invalid id at index ${i}.` }
+    }
+    const t = id.trim()
+    if (seen.has(t)) continue
+    seen.add(t)
+    ids.push(t)
+  }
+  if (ids.length === 0) {
+    return { ok: false, message: 'No valid transaction ids.' }
+  }
+  return { ok: true, ids }
+}
