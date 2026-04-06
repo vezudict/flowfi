@@ -69,3 +69,19 @@ export function resolveTransactionCategory(input: {
   if (fromDesc) return fromDesc
   return 'Other'
 }
+
+/**
+ * Simpler labels for PDF / bank-statement imports (lowercase).
+ * swiggy|zomato → food, uber → transport, salary → income; credits default to income, else other.
+ */
+export function resolvePdfImportCategory(input: {
+  description: string
+  type: 'credit' | 'debit'
+}): string {
+  const t = normalizeDescriptionForCategory(input.description)
+  if (t.includes('salary')) return 'income'
+  if (t.includes('swiggy') || t.includes('zomato')) return 'food'
+  if (t.includes('uber')) return 'transport'
+  if (input.type === 'credit') return 'income'
+  return 'other'
+}

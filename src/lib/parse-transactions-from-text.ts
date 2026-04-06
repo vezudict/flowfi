@@ -64,3 +64,38 @@ export function parseTransactionsFromText(text: string): Transaction[] {
 
   return out
 }
+
+const MONTH_INDEX: Record<string, number> = {
+  jan: 0,
+  feb: 1,
+  mar: 2,
+  apr: 3,
+  may: 4,
+  jun: 5,
+  jul: 6,
+  aug: 7,
+  sep: 8,
+  oct: 9,
+  nov: 10,
+  dec: 11,
+}
+
+/** Parse `DD-MMM-YYYY` (e.g. `02-Apr-2026`) to ISO-8601 for API `createdAt`. */
+export function parsePdfStatementDateToIso(raw: string): string | null {
+  const m = raw.trim().match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/)
+  if (!m) return null
+  const day = Number(m[1])
+  const mi = MONTH_INDEX[m[2].toLowerCase()]
+  const year = Number(m[3])
+  if (mi === undefined || !Number.isFinite(day) || !Number.isFinite(year)) return null
+  const d = new Date(year, mi, day, 12, 0, 0, 0)
+  if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
+  return d.toISOString()
+}
+
+export function formatTodayPdfStatementDate(): string {
+  const d = new Date()
+  const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+  const day = String(d.getDate()).padStart(2, '0')
+  return `${day}-${labels[d.getMonth()]}-${d.getFullYear()}`
+}
