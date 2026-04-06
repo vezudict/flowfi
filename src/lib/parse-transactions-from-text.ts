@@ -1,6 +1,6 @@
 /**
- * Heuristic parser for common Indian bank-statement text lines, e.g.
- * "02-Apr-2026 UPI-Swiggy Payment 250"
+ * Regex-first PDF statement parser — does not rely on spaces.
+ * Splits on date anchors, then takes the last numeric token as amount.
  */
 
 export type Transaction = {
@@ -10,58 +10,91 @@ export type Transaction = {
   type: 'credit' | 'debit'
 }
 
-const LINE_WITH_DATE = /^(\d{1,2}-[A-Za-z]{3}-\d{4})\s+(.+)$/
-const TRAILING_AMOUNT = /^(.*)\s+([-+]?[\d,]+(?:\.\d+)?)\s*$/
+/** Date token: DD-MMM-YYYY (day may be 1–2 digits). */
+const DATE_REGEX = /\d{1,2}-[A-Za-z]{3}-\d{4}/g
+const DATE_AT_BLOCK_START = /^(\d{1,2}-[A-Za-z]{3}-\d{4})/
 
 const SKIP_SUBSTRING = /opening balance|closing balance/i
 const HEADER_LIKE =
   /^(date|description|amount|balance|particulars|transaction|sl\.?\s*no|withdrawal|deposit)\b/i
 
-function normalizeSpaces(s: string): string {
-  return s.replace(/\s+/g, ' ').trim()
+/** Last numeric token in a segment (commas allowed; optional leading + / -). */
+function findLastNumericToken(s: string): {
+  raw: string
+  signed: number
+  index: number
+} | null {
+  const re = /[-+]?\d[\d,]*(?:\.\d+)?/g
+  let m: RegExpExecArray | null
+  let last: RegExpExecArray | null = null
+  while ((m = re.exec(s)) !== null) last = m
+  if (!last) return null
+  const raw = last[0]
+  const signed = Number.parseFloat(raw.replace(/,/g, ''))
+  if (!Number.isFinite(signed)) return null
+  return { raw, signed, index: last.index }
 }
 
-function inferType(description: string, signed: number): 'credit' | 'debit' {
-  if (/\bcredit\b/i.test(description) || signed > 0) return 'credit'
-  return 'debit'
+function normalizeDateForOutput(raw: string): string {
+  const m = raw.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/i)
+  if (!m) return raw.trim()
+  const day = m[1].padStart(2, '0')
+  const mon = m[2].slice(0, 1).toUpperCase() + m[2].slice(1, 3).toLowerCase()
+  return `${day}-${mon}-${m[3]}`
 }
 
-function tryParseLine(line: string): Transaction | null {
-  const trimmed = normalizeSpaces(line)
-  if (!trimmed) return null
-  if (SKIP_SUBSTRING.test(trimmed)) return null
-  if (HEADER_LIKE.test(trimmed)) return null
-
-  const dm = trimmed.match(LINE_WITH_DATE)
-  if (!dm) return null
-
-  const date = normalizeSpaces(dm[1])
-  const rest = normalizeSpaces(dm[2])
-  const am = rest.match(TRAILING_AMOUNT)
-  if (!am) return null
-
-  const description = normalizeSpaces(am[1])
-  if (!description) return null
-
-  const rawAmount = am[2]
-  const signed = parseFloat(rawAmount.replace(/,/g, ''))
-  if (!Number.isFinite(signed) || signed === 0) return null
-
-  const amount = Math.abs(signed)
-  const type = inferType(description, signed)
-
-  return { date, description, amount, type }
+function cleanDescription(beforeAmount: string): string {
+  return beforeAmount
+    .replace(/[-+]?\d[\d,]*(?:\.\d+)?/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export function parseTransactionsFromText(text: string): Transaction[] {
-  const lines = text.split(/\r?\n/)
-  const out: Transaction[] = []
+  const normalized = text.replace(/\r\n/g, '\n')
+  const matches = [...normalized.matchAll(DATE_REGEX)]
 
-  for (const line of lines) {
-    const row = tryParseLine(line)
-    if (row) out.push(row)
+  if (matches.length === 0) {
+    console.log('[parseTransactionsFromText]', [])
+    return []
   }
 
+  const out: Transaction[] = []
+
+  for (let i = 0; i < matches.length; i++) {
+    const start = matches[i].index ?? 0
+    const end =
+      i + 1 < matches.length
+        ? (matches[i + 1].index ?? normalized.length)
+        : normalized.length
+
+    const block = normalized.slice(start, end).replace(/\s+/g, ' ').trim()
+
+    if (SKIP_SUBSTRING.test(block)) continue
+
+    const dm = block.match(DATE_AT_BLOCK_START)
+    if (!dm) continue
+
+    const date = normalizeDateForOutput(dm[1])
+    const afterDate = block.slice(dm[0].length)
+
+    const lastNum = findLastNumericToken(afterDate)
+    if (!lastNum || lastNum.signed === 0) continue
+
+    const descRaw = afterDate.slice(0, lastNum.index).trim()
+    const description = cleanDescription(descRaw)
+
+    if (!description) continue
+    if (SKIP_SUBSTRING.test(description)) continue
+    if (HEADER_LIKE.test(description)) continue
+
+    const amount = Math.abs(lastNum.signed)
+    const type: 'credit' | 'debit' = lastNum.signed < 0 ? 'debit' : 'credit'
+
+    out.push({ date, description, amount, type })
+  }
+
+  console.log('[parseTransactionsFromText]', out)
   return out
 }
 
@@ -95,7 +128,20 @@ export function parsePdfStatementDateToIso(raw: string): string | null {
 
 export function formatTodayPdfStatementDate(): string {
   const d = new Date()
-  const labels = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const
+  const labels = [
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
+  ] as const
   const day = String(d.getDate()).padStart(2, '0')
   return `${day}-${labels[d.getMonth()]}-${d.getFullYear()}`
 }
