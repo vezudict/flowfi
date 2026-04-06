@@ -1,8 +1,9 @@
 'use client'
 
 import { Loader2 } from 'lucide-react'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
+import { parseTransactionsFromText } from '@/lib/parse-transactions-from-text'
 
 const MAX_BYTES = 5 * 1024 * 1024
 const PDF_MIME = 'application/pdf'
@@ -13,6 +14,11 @@ export function PdfBankStatementUpload() {
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
   const [busy, setBusy] = useState(false)
+
+  const parsedRows = useMemo(
+    () => (extractedText !== null ? parseTransactionsFromText(extractedText) : []),
+    [extractedText],
+  )
 
   const reset = useCallback(() => {
     setError(null)
@@ -124,13 +130,68 @@ export function PdfBankStatementUpload() {
         ) : null}
 
         {extractedText !== null ? (
-          <div className="result-panel mt-4 rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
-            <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-              Extracted text (debug)
-            </p>
-            <pre className="mt-2 max-h-[360px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-200/80 bg-white p-3 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">
-              {extractedText || '(empty)'}
-            </pre>
+          <div className="space-y-4">
+            {parsedRows.length > 0 ? (
+              <div className="result-panel rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+                <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Parsed transactions ({parsedRows.length})
+                </p>
+                <div className="mt-2 max-h-[280px] overflow-auto rounded-lg border border-zinc-200/80 dark:border-zinc-700">
+                  <table className="w-full min-w-[520px] text-left text-xs">
+                    <thead className="sticky top-0 bg-zinc-100 dark:bg-zinc-900">
+                      <tr>
+                        <th className="px-2 py-1.5 font-medium text-zinc-700 dark:text-zinc-300">
+                          Date
+                        </th>
+                        <th className="px-2 py-1.5 font-medium text-zinc-700 dark:text-zinc-300">
+                          Description
+                        </th>
+                        <th className="px-2 py-1.5 font-medium text-zinc-700 dark:text-zinc-300">
+                          Amount
+                        </th>
+                        <th className="px-2 py-1.5 font-medium text-zinc-700 dark:text-zinc-300">
+                          Type
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
+                      {parsedRows.map((row, i) => (
+                        <tr key={`${row.date}-${row.description}-${i}`}>
+                          <td className="whitespace-nowrap px-2 py-1.5 text-zinc-800 dark:text-zinc-200">
+                            {row.date}
+                          </td>
+                          <td className="max-w-[200px] truncate px-2 py-1.5 text-zinc-800 dark:text-zinc-200" title={row.description}>
+                            {row.description}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums text-zinc-800 dark:text-zinc-200">
+                            {row.amount.toLocaleString('en-IN')}
+                          </td>
+                          <td className="whitespace-nowrap px-2 py-1.5">
+                            <span
+                              className={
+                                row.type === 'credit'
+                                  ? 'text-emerald-700 dark:text-emerald-400'
+                                  : 'text-zinc-700 dark:text-zinc-300'
+                              }
+                            >
+                              {row.type}
+                            </span>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            ) : null}
+            <div className="result-panel rounded-xl border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+              <p className="text-xs font-medium uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                Extracted text (debug)
+              </p>
+              <pre className="mt-2 max-h-[280px] overflow-auto whitespace-pre-wrap break-words rounded-lg border border-zinc-200/80 bg-white p-3 font-mono text-xs text-zinc-800 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-200">
+                {extractedText || '(empty)'}
+              </pre>
+            </div>
           </div>
         ) : null}
       </div>
