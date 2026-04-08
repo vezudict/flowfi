@@ -1,7 +1,6 @@
 'use client'
 
-import type { PointerEvent } from 'react'
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
@@ -20,7 +19,10 @@ import { useAuth } from '@/contexts/auth-context'
 import { useCurrency } from '@/contexts/currency-context'
 import { fetchProfileBudget } from '@/lib/profile-budget'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
-import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
+import {
+  isOtherLikeCategoryLabel,
+  suggestCategoryFromDescription,
+} from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
@@ -50,8 +52,6 @@ import {
 } from '@/lib/transactions'
 import { toast } from 'sonner'
 
-const premiumEase = [0.23, 1, 0.32, 1] as const
-
 type SelectableTransactionRowProps = {
   tx: Transaction
   isSelected: boolean
@@ -59,12 +59,32 @@ type SelectableTransactionRowProps = {
   currency: SupportedCurrencyCode
   deleteSubmitting: boolean
   pendingDeleteId: string | undefined
-  onToggle: () => void
-  onEdit: () => void
-  onDelete: () => void
+  onToggle: (id: string) => void
+  onEdit: (id: string) => void
+  onDelete: (id: string) => void
 }
 
-function SelectableTransactionRow({
+/** Stripe/Linear-style pill: subtle tint, hairline border, status dot. */
+function TransactionEntryTypeBadge({ variant }: { variant: 'credit' | 'debit' }) {
+  const isCredit = variant === 'credit'
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center rounded-full border px-2.5 py-0.5 text-xs font-medium tracking-wide uppercase ${
+        isCredit
+          ? 'border-emerald-500/20 bg-emerald-500/10 text-emerald-400 dark:border-emerald-500/25 dark:bg-emerald-500/10 dark:text-emerald-400'
+          : 'border-red-500/20 bg-red-500/10 text-red-400 dark:border-red-500/25 dark:bg-red-500/10 dark:text-red-400'
+      }`}
+    >
+      <span
+        className={`mr-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${isCredit ? 'bg-emerald-400' : 'bg-red-400'}`}
+        aria-hidden
+      />
+      {isCredit ? 'Credit' : 'Debit'}
+    </span>
+  )
+}
+
+const SelectableTransactionRow = memo(function SelectableTransactionRow({
   tx,
   isSelected,
   isRecurring,
@@ -76,186 +96,115 @@ function SelectableTransactionRow({
   onDelete,
 }: SelectableTransactionRowProps) {
   const [holdFilledIndicator, setHoldFilledIndicator] = useState(isSelected)
-  const [ripple, setRipple] = useState<{
-    x: number
-    y: number
-    id: number
-  } | null>(null)
 
   useEffect(() => {
     if (isSelected) setHoldFilledIndicator(true)
   }, [isSelected])
 
-  /** Keeps row + dot styled until the check exit animation finishes */
   const showSelectedChrome = isSelected || holdFilledIndicator
-
-  const handlePointerDown = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.button !== 0) return
-    const el = e.currentTarget
-    const r = el.getBoundingClientRect()
-    setRipple({
-      x: e.clientX - r.left,
-      y: e.clientY - r.top,
-      id: performance.now(),
-    })
-  }
+  const isCredit = transactionEntryType(tx) === 'credit'
+  const descTrim = tx.description?.trim() ?? ''
+  const titleLine = descTrim || tx.category
+  const dateStr = new Date(tx.created_at).toLocaleString()
+  const metaLine = [
+    tx.category,
+    dateStr,
+    isRecurring ? 'Recurring' : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
-    <li className="list-none px-0.5">
-      <motion.div
-        role="button"
-        tabIndex={0}
-        aria-pressed={isSelected}
-        aria-label={`${isSelected ? 'Deselect' : 'Select'} ${tx.category}`}
-        onClick={onToggle}
-        onPointerDown={handlePointerDown}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter' || e.key === ' ') {
-            e.preventDefault()
-            onToggle()
-          }
-        }}
-        animate={{ scale: showSelectedChrome ? 1.004 : 1 }}
-        whileHover={{
-          scale: showSelectedChrome ? 1.006 : 1.009,
-          transition: { type: 'spring', stiffness: 520, damping: 32 },
-        }}
-        whileTap={{ scale: 0.988 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30, mass: 0.88 }}
-        className={`group relative flex cursor-pointer gap-3 overflow-hidden rounded-xl border py-3 pl-3 pr-3 outline-none transition-[border-color,background-color,box-shadow] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] focus-visible:ring-2 focus-visible:ring-indigo-500/35 sm:gap-4 sm:pl-3.5 ${
+    <li className="list-none">
+      <div
+        className={`group flex items-start gap-3 rounded-lg border px-4 py-3 outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-within:ring-2 focus-within:ring-indigo-500/30 ${
           showSelectedChrome
-            ? 'border-indigo-300/70 bg-indigo-50/70 shadow-[0_0_0_1px_rgba(99,102,241,0.12)] dark:border-indigo-500/35 dark:bg-indigo-950/35 dark:shadow-[0_0_24px_-8px_rgba(129,140,248,0.35)]'
-            : 'border-transparent bg-white/40 hover:border-zinc-200/80 hover:bg-zinc-50/90 hover:shadow-sm dark:bg-zinc-950/20 dark:hover:border-zinc-700/60 dark:hover:bg-zinc-900/45'
-        } `}
+            ? 'border-indigo-400/40 bg-indigo-500/[0.06] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.12)] dark:border-indigo-500/35 dark:bg-indigo-500/10'
+            : 'border-zinc-200/40 bg-transparent hover:bg-black/[0.03] dark:border-white/5 dark:hover:bg-white/5'
+        }`}
       >
-        {ripple ? (
-          <motion.span
-            key={ripple.id}
-            aria-hidden
-            className="pointer-events-none absolute rounded-full bg-indigo-400/35 dark:bg-indigo-400/25"
-            style={{
-              left: ripple.x,
-              top: ripple.y,
-              width: 14,
-              height: 14,
-              marginLeft: -7,
-              marginTop: -7,
-            }}
-            initial={{ scale: 0.15, opacity: 0.42 }}
-            animate={{ scale: 6.5, opacity: 0 }}
-            transition={{ duration: 0.62, ease: premiumEase }}
-            onAnimationComplete={() => setRipple(null)}
-          />
-        ) : null}
-
-        <motion.span
-          className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 ${
+        <button
+          type="button"
+          aria-pressed={isSelected}
+          aria-label={`${isSelected ? 'Deselect' : 'Select'} ${tx.category}`}
+          onClick={() => onToggle(tx.id)}
+          className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
             showSelectedChrome
-              ? 'border-indigo-600 bg-indigo-600 text-white shadow-sm dark:border-indigo-500 dark:bg-indigo-500'
-              : 'border-zinc-300 bg-white group-hover:border-indigo-400/65 group-hover:shadow-[0_0_0_3px_rgba(99,102,241,0.08)] dark:border-zinc-600 dark:bg-zinc-900 dark:group-hover:border-indigo-500/55 dark:group-hover:shadow-[0_0_0_3px_rgba(129,140,248,0.12)]'
+              ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-500'
+              : 'border-zinc-300 bg-white group-hover:border-indigo-400/70 dark:border-zinc-600 dark:bg-zinc-900 dark:group-hover:border-indigo-500/60'
           }`}
-          animate={
-            isSelected
-              ? { scale: [1, 1.12, 1] }
-              : { scale: 1 }
-          }
-          transition={
-            isSelected
-              ? { duration: 0.38, times: [0, 0.38, 1], ease: premiumEase }
-              : { duration: 0.22, ease: premiumEase }
-          }
-          aria-hidden
         >
-          <span className="relative flex h-full w-full items-center justify-center overflow-hidden rounded-full">
-            {!showSelectedChrome ? (
-              <Check
-                className="pointer-events-none absolute h-3 w-3 stroke-[2.8] text-indigo-600/85 opacity-0 scale-[0.72] transition-[transform,opacity] duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:opacity-[0.34] group-hover:scale-95 dark:text-indigo-400/80"
-                aria-hidden
-              />
-            ) : null}
-            <AnimatePresence
-              initial={false}
-              onExitComplete={() => {
-                if (!isSelected) setHoldFilledIndicator(false)
-              }}
-            >
-              {isSelected ? (
-                <motion.span
-                  key="check-on"
-                  initial={{ scale: 0.12, opacity: 0, rotate: -32 }}
-                  animate={{ scale: 1, opacity: 1, rotate: 0 }}
-                  exit={{ scale: 0.62, opacity: 0, rotate: 10 }}
-                  transition={{ type: 'spring', stiffness: 520, damping: 28 }}
-                  className="flex items-center justify-center"
-                >
-                  <Check className="h-3 w-3 stroke-[2.8] text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.12)]" />
-                </motion.span>
-              ) : null}
-            </AnimatePresence>
-          </span>
-        </motion.span>
-
-        <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0 flex-1">
-            <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
-              <span>{tx.category}</span>
-              <span
-                className={`inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
-                  transactionEntryType(tx) === 'credit'
-                    ? 'bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
-                    : 'bg-zinc-500/12 text-zinc-600 dark:bg-zinc-500/20 dark:text-zinc-400'
-                }`}
+          {!showSelectedChrome ? (
+            <Check
+              className="pointer-events-none absolute h-3 w-3 stroke-[2.8] text-indigo-600/70 opacity-0 transition-opacity duration-150 group-hover:opacity-35 dark:text-indigo-400/80"
+              aria-hidden
+            />
+          ) : null}
+          <AnimatePresence
+            initial={false}
+            onExitComplete={() => {
+              if (!isSelected) setHoldFilledIndicator(false)
+            }}
+          >
+            {isSelected ? (
+              <motion.span
+                key="check-on"
+                initial={{ scale: 0.5, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                exit={{ scale: 0.7, opacity: 0 }}
+                transition={{ type: 'spring', stiffness: 520, damping: 32 }}
+                className="flex items-center justify-center"
               >
-                {transactionEntryType(tx) === 'credit' ? 'Credit' : 'Debit'}
-              </span>
-              {isRecurring ? (
-                <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
-                  Recurring
-                </span>
-              ) : null}
-            </p>
-            {tx.description ? (
-              <p className="mt-0.5 text-sm text-zinc-500/85 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-600/90 dark:text-zinc-400/85 dark:group-hover:text-zinc-300/90">
-                {tx.description}
-              </p>
+                <Check className="h-3 w-3 stroke-[2.8] text-white" />
+              </motion.span>
             ) : null}
-            <p className="mt-1 text-xs text-zinc-400/90 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-500 dark:text-zinc-500/90 dark:group-hover:text-zinc-400">
-              {new Date(tx.created_at).toLocaleString()}
+          </AnimatePresence>
+        </button>
+
+        <div className="min-w-0 flex-1 pr-2">
+          <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">{titleLine}</p>
+          <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{metaLine}</p>
+        </div>
+
+        <div className="flex shrink-0 items-start gap-2 sm:items-center">
+          <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+            <p
+              className={`text-right text-sm font-medium tabular-nums ${
+                isCredit ? 'text-emerald-400' : 'text-red-400'
+              }`}
+            >
+              {formatCurrency(Math.abs(normalizeAmount(tx.amount)), currency)}
             </p>
+            <TransactionEntryTypeBadge variant={isCredit ? 'credit' : 'debit'} />
           </div>
           <div
-            className="flex shrink-0 items-center gap-3 sm:flex-col sm:items-end sm:gap-2"
+            className="flex shrink-0 items-center gap-0.5 opacity-0 transition-opacity duration-150 group-hover:opacity-100 focus-within:opacity-100"
             onClick={(e) => e.stopPropagation()}
             onPointerDown={(e) => e.stopPropagation()}
           >
-            <p className="text-base font-semibold tabular-nums text-zinc-900 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] group-hover:text-zinc-950 dark:text-zinc-100 dark:group-hover:text-white">
-              {formatCurrency(Math.abs(normalizeAmount(tx.amount)), currency)}
-            </p>
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                onClick={onEdit}
-                className="rounded-lg p-2 text-zinc-500 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
-                aria-label={`Edit transaction ${tx.category}`}
-              >
-                <Pencil className="h-4 w-4" aria-hidden />
-              </button>
-              <button
-                type="button"
-                onClick={onDelete}
-                disabled={deleteSubmitting && pendingDeleteId === tx.id}
-                className="rounded-lg p-2 text-zinc-500 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
-                aria-label={`Delete transaction ${tx.category}`}
-              >
-                <Trash2 className="h-4 w-4" aria-hidden />
-              </button>
-            </div>
+            <button
+              type="button"
+              onClick={() => onEdit(tx.id)}
+              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
+              aria-label={`Edit transaction ${tx.category}`}
+            >
+              <Pencil className="h-4 w-4" aria-hidden />
+            </button>
+            <button
+              type="button"
+              onClick={() => onDelete(tx.id)}
+              disabled={deleteSubmitting && pendingDeleteId === tx.id}
+              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
+              aria-label={`Delete transaction ${tx.category}`}
+            >
+              <Trash2 className="h-4 w-4" aria-hidden />
+            </button>
           </div>
         </div>
-      </motion.div>
+      </div>
     </li>
   )
-}
+})
 
 const inputClass =
   'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
@@ -322,7 +271,11 @@ export default function DashboardPage() {
     setCategory((prev) => {
       const prevTrim = prev.trim()
       if (suggestion) {
-        if (!prevTrim || prevTrim === categorySyncedFromSuggestion.current) {
+        if (
+          !prevTrim ||
+          prevTrim === categorySyncedFromSuggestion.current ||
+          isOtherLikeCategoryLabel(prevTrim)
+        ) {
           categorySyncedFromSuggestion.current = suggestion
           return suggestion
         }
@@ -482,11 +435,27 @@ export default function DashboardPage() {
     setPendingDelete(null)
   }
 
-  function toggleTransactionSelected(id: string) {
+  const toggleTransactionSelected = useCallback((id: string) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     )
-  }
+  }, [])
+
+  const requestEditTransaction = useCallback(
+    (id: string) => {
+      const t = filteredTransactions.find((x) => x.id === id)
+      if (t) setEditingTransaction(t)
+    },
+    [filteredTransactions],
+  )
+
+  const requestDeleteTransaction = useCallback(
+    (id: string) => {
+      const t = filteredTransactions.find((x) => x.id === id)
+      if (t) setPendingDelete(t)
+    },
+    [filteredTransactions],
+  )
 
   function toggleSelectAllVisible() {
     const ids = filteredTransactions.map((t) => t.id)
@@ -1017,9 +986,9 @@ export default function DashboardPage() {
 
           {listLoading ? (
             <div className="mt-4">
-              <ul className="space-y-0 divide-y divide-zinc-100 dark:divide-zinc-800">
+              <ul className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <li key={i} className="flex items-center justify-between gap-4 py-4">
+                  <li key={i} className="flex items-center justify-between gap-4 py-3">
                     <div className="min-h-[52px] flex-1 space-y-2">
                       <div className="h-4 w-28 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
                       <div className="h-3 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
@@ -1039,11 +1008,10 @@ export default function DashboardPage() {
                 <Receipt className="h-6 w-6" aria-hidden />
               </div>
               <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                No transactions yet
+                Start by adding your first transaction
               </p>
               <p className="mt-2 max-w-xs text-sm text-zinc-500/90 dark:text-zinc-400/85">
-                Your ledger stays empty until you add rows. Start with one
-                purchase or import a CSV from Tools.
+                Your ledger stays empty until you add a row. You can also import a CSV from Tools.
               </p>
               <Link
                 href="#add-transaction"
@@ -1071,18 +1039,21 @@ export default function DashboardPage() {
             </div>
           ) : (
             <div className="recent-activity-scroll mt-4 max-h-[min(420px,55vh)] overflow-y-auto scroll-smooth pr-3 [-webkit-overflow-scrolling:touch]">
-              <div className="sticky top-0 z-[1] flex items-center justify-end border-b border-zinc-200/90 bg-white/90 px-2 py-2.5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90">
+              <div className="sticky top-0 z-[1] flex items-center justify-between gap-3 border-b border-zinc-200/90 bg-white/90 px-2 py-2.5 backdrop-blur-md dark:border-zinc-800 dark:bg-zinc-950/90">
+                <span className="text-xs font-medium text-zinc-500 dark:text-zinc-400">
+                  Bulk select
+                </span>
                 <motion.button
                   type="button"
                   onClick={toggleSelectAllVisible}
                   whileTap={{ scale: 0.96 }}
                   transition={{ type: 'spring', stiffness: 520, damping: 32 }}
-                  className="rounded-full px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors duration-300 ease-[cubic-bezier(0.23,1,0.32,1)] hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
+                  className="rounded-full px-3 py-1.5 text-xs font-medium text-indigo-600 transition-colors duration-150 hover:bg-indigo-50 hover:text-indigo-700 dark:text-indigo-400 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300"
                 >
                   {allVisibleSelected ? 'Clear selection' : 'Select all'}
                 </motion.button>
               </div>
-              <ul className="space-y-1.5 pb-1 pt-2">
+              <ul className="space-y-2 pb-1 pt-2">
                 {filteredTransactions.map((tx) => (
                   <SelectableTransactionRow
                     key={tx.id}
@@ -1092,9 +1063,9 @@ export default function DashboardPage() {
                     currency={currency}
                     deleteSubmitting={deleteSubmitting}
                     pendingDeleteId={pendingDelete?.id}
-                    onToggle={() => toggleTransactionSelected(tx.id)}
-                    onEdit={() => setEditingTransaction(tx)}
-                    onDelete={() => setPendingDelete(tx)}
+                    onToggle={toggleTransactionSelected}
+                    onEdit={requestEditTransaction}
+                    onDelete={requestDeleteTransaction}
                   />
                 ))}
               </ul>

@@ -15,7 +15,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/spending-insights.ts` | Savings, expense, income, recurring insight bullets | `FinancialInsights` |
 | `src/lib/recurring-transactions.ts` | Detect recurring debits, insight copy | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |
-| `src/lib/category-suggestion.ts` | Description → category rules; analytics label normalization | Add form, charts |
+| `src/lib/category-suggestion.ts` | **Keyword rules** (e.g. Netflix → Subscriptions, Swiggy/Zomato → Food, Uber → Transport, electricity → Utilities); `resolveTransactionCategory` for CSV (retries keywords when category is **Other** + description present); `resolvePdfImportCategory` for PDF import (lowercase labels); `categoryForAnalytics` / income-label helpers | Dashboard add form, edit modal, CSV import, PDF import |
 | `src/lib/transaction-filters.ts` | Search/date/category filters | Dashboard transaction list |
 | `src/lib/format-currency.ts` | `Intl` currency formatting | UI everywhere |
 | `src/lib/currencies.ts` | Supported codes, locale metadata | Settings, formatting |
@@ -26,7 +26,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/rent-vs-buy.ts` | Rent vs buy projections | Rent vs buy tool |
 | `src/lib/decision-engine.ts` | Decision engine rules / outputs | Decision tool |
 | `src/lib/csv-transactions.ts` | Parse/normalize CSV rows for import | Import tool, API import |
-| `src/lib/parse-transactions-from-text.ts` | Text → transaction candidates | PDF / parsing pipeline |
+| `src/lib/parse-transactions-from-text.ts` | Regex PDF text → transaction candidates; **`detectCategoryWithFallback`** (raw + normalized description) to limit `other` | PDF pipeline, preview |
 | `src/lib/transactions.ts` | Client fetch/delete helpers; `Transaction` type | Dashboard, modals |
 | `src/lib/authed-api.ts` | Bearer `fetch` + JSON helpers | Client → API routes |
 | `src/lib/supabase-server.ts` | Service role / user from token for Route Handlers | All `api/*` mutations |
@@ -52,7 +52,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/app/signup/page.tsx` | Sign-up | Auth |
 | `src/app/guide/page.tsx` | In-app guide | Learn |
 | `src/app/(app)/layout.tsx` | Authenticated shell (`AppShell`) | Dashboard, tools, settings |
-| `src/app/(app)/dashboard/page.tsx` | Dashboard: analytics, charts, add tx, filters, bulk actions | Main product surface |
+| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, `category · date` meta, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount, row hover `bg-black/[0.03]` / `dark:bg-white/5`, edit/delete fade in | Main product surface |
 | `src/app/(app)/settings/page.tsx` | Appearance, currency | User prefs |
 | `src/app/(app)/tools/page.tsx` | Tools index grid | Navigation |
 | `src/app/(app)/tools/credit-score/page.tsx` | Credit score tool page | Tool shell + client |
@@ -86,6 +86,8 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/components/dashboard/CategoryPieChart.tsx` | Recharts donut (category breakdown) |
 | `src/components/dashboard/SpendingBarChart.tsx` | Recharts bar (daily series) |
 | `src/components/dashboard/TransactionEditModal.tsx` | Edit transaction |
+
+**Transaction list rows** are implemented only in **`dashboard/page.tsx`** (`SelectableTransactionRow` + `TransactionEntryTypeBadge`). Badge tokens: see **Transaction type badges** under UI primitives.
 
 ### Tools
 
@@ -126,6 +128,10 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/components/ui/chart.tsx` | Chart helpers (shadcn-style) |
 | `src/components/ui/calendar.tsx` / `date-picker.tsx` / `popover.tsx` | Date UI |
 | `src/components/ui/AppToaster.tsx` | Toasts |
+
+### Transaction type badges (Debit / Credit)
+
+Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryTypeBadge`** (used by **`SelectableTransactionRow`** — not a separate file). Premium SaaS–style pills: **`rounded-full`**, **`text-xs font-medium tracking-wide uppercase`**, leading **status dot** (`w-1.5 h-1.5 rounded-full`), tinted background + hairline border — **Credit**: emerald (`bg-emerald-500/10`, `text-emerald-400`, `border-emerald-500/20`); **Debit**: red (`bg-red-500/10`, `text-red-400`, `border-red-500/20`). Spacing: **`gap-x-3`** between category label and badge so it stays secondary to the row. Dark mode: slightly stronger borders (`dark:border-*-500/25`).
 
 ### Session
 

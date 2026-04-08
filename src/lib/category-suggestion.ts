@@ -7,11 +7,18 @@ export type CategoryKeywordRule = {
   category: string
 }
 
+/**
+ * Order matters: first matching keyword wins (put specific phrases before generic "bill").
+ */
 export const CATEGORY_KEYWORD_RULES: readonly CategoryKeywordRule[] = [
+  { keywords: ['netflix'], category: 'Subscriptions' },
+  { keywords: ['spotify', 'hotstar', 'amazon prime', 'prime video'], category: 'Subscriptions' },
   { keywords: ['swiggy', 'zomato'], category: 'Food' },
   { keywords: ['uber', 'ola'], category: 'Transport' },
+  { keywords: ['electricity', 'electric bill', 'power bill', 'discom', 'bescom'], category: 'Utilities' },
   { keywords: ['amazon', 'flipkart'], category: 'Shopping' },
-  { keywords: ['electricity', 'bill'], category: 'Bills' },
+  { keywords: ['internet', 'broadband', 'fiber', 'wifi'], category: 'Bills' },
+  { keywords: ['bill', 'recharge'], category: 'Bills' },
 ] as const
 
 /** Normalize description before keyword matching (trim + lowercase). */
@@ -46,8 +53,8 @@ export function categoryForAnalytics(raw: string): string {
 }
 
 /**
- * Money-in labels for analytics (not spending). Uses normalized category text.
- * When `transaction_type` is missing, these labels infer credit (see `transactionEntryType`).
+ * Money-in labels for **category text hints** (imports/heuristics). Debit/credit comes from
+ * `transaction_type` on each row.
  */
 const INCOME_CATEGORY_LABELS = new Set(
   [
@@ -80,34 +87,53 @@ export function isPlausibleImportedCategoryLabel(raw: string): boolean {
   return true
 }
 
+/** CSV or manual labels that should retry keyword classification when description exists. */
+export function isOtherLikeCategoryLabel(label: string): boolean {
+  return label.trim().toLowerCase() === 'other'
+}
+
 /**
  * Single resolver for persisted category: optional CSV column, then keyword rules on description, else Other.
+ * If the CSV category is "Other" and a description exists, keywords are applied to reduce generic Other.
  */
 export function resolveTransactionCategory(input: {
   description: string | null
   csvCategory?: string | null
 }): string {
+  const desc = (input.description ?? '').trim()
   const csv = input.csvCategory?.trim() ?? ''
+
   if (csv && isPlausibleImportedCategoryLabel(csv)) {
-    return csv.replace(/\s+/g, ' ').trim()
+    const normalized = csv.replace(/\s+/g, ' ').trim()
+    if (!isOtherLikeCategoryLabel(normalized)) {
+      return normalized
+    }
+    if (desc) {
+      const fromDesc = suggestCategoryFromDescription(desc)
+      if (fromDesc) return fromDesc
+    }
+    return normalized
   }
-  const fromDesc = suggestCategoryFromDescription(input.description ?? '')
+
+  const fromDesc = suggestCategoryFromDescription(desc)
   if (fromDesc) return fromDesc
   return 'Other'
 }
 
 /**
  * Simpler labels for PDF / bank-statement imports (lowercase).
- * swiggy|zomato → food, uber → transport, salary → income; credits default to income, else other.
+ * Order: specific merchants/utilities before generic credit → income.
  */
 export function resolvePdfImportCategory(input: {
   description: string
   type: 'credit' | 'debit'
 }): string {
   const t = normalizeDescriptionForCategory(input.description)
-  if (t.includes('salary')) return 'income'
+  if (t.includes('netflix') || t.includes('spotify') || t.includes('hotstar')) return 'subscriptions'
   if (t.includes('swiggy') || t.includes('zomato')) return 'food'
   if (t.includes('uber')) return 'transport'
+  if (t.includes('electricity') || t.includes('electric bill') || t.includes('power bill')) return 'utilities'
+  if (t.includes('salary')) return 'income'
   if (input.type === 'credit') return 'income'
   return 'other'
 }

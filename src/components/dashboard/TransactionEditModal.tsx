@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
-import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
+import {
+  isOtherLikeCategoryLabel,
+  suggestCategoryFromDescription,
+} from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { transactionEntryType, type EntryType } from '@/lib/transaction-flow'
@@ -43,6 +46,13 @@ export function TransactionEditModal({
     setEntryType(transactionEntryType(transaction))
     setFormError(null)
   }, [transaction])
+
+  useEffect(() => {
+    if (!transaction) return
+    const suggestion = suggestedCategory
+    if (!suggestion) return
+    setCategory((prev) => (isOtherLikeCategoryLabel(prev) ? suggestion : prev))
+  }, [suggestedCategory, transaction])
 
   useEffect(() => {
     if (!transaction) return

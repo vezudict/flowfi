@@ -9,6 +9,8 @@ export type TransactionCategory =
   | 'income'
   | 'bills'
   | 'groceries'
+  | 'subscriptions'
+  | 'utilities'
   | 'other'
 
 export type Transaction = {
@@ -94,11 +96,14 @@ function normalizeDescription(desc: string): string {
 }
 
 const CATEGORY_RULES: Array<{ pattern: RegExp; category: TransactionCategory }> = [
+  { pattern: /\b(netflix|spotify|hotstar)\b/i, category: 'subscriptions' },
   { pattern: /\b(swiggy|zomato)\b/i, category: 'food' },
-  { pattern: /\b(uber|fuel|petrol|diesel)\b/i, category: 'transport' },
+  { pattern: /\b(uber|ola|fuel|petrol|diesel)\b/i, category: 'transport' },
   { pattern: /\b(salary|freelance)\b/i, category: 'income' },
-  { pattern: /\b(electricity|internet|bill)\b/i, category: 'bills' },
+  { pattern: /\b(electricity|electric\s+bill|power\s+bill|discom|bescom)\b/i, category: 'utilities' },
+  { pattern: /\b(internet|broadband|fiber|wifi)\b/i, category: 'bills' },
   { pattern: /\b(grocery|groceries)\b/i, category: 'groceries' },
+  { pattern: /\b(bill|recharge)\b/i, category: 'bills' },
 ]
 
 function detectCategory(description: string): TransactionCategory {
@@ -106,6 +111,15 @@ function detectCategory(description: string): TransactionCategory {
     if (pattern.test(description)) return category
   }
   return 'other'
+}
+
+/** If parser defaulted to other, retry keywords on normalized description (matches dashboard CSV path). */
+function detectCategoryWithFallback(rawDescription: string, normalizedDescription: string): TransactionCategory {
+  const direct = detectCategory(rawDescription)
+  if (direct !== 'other') return direct
+  if (!normalizedDescription.trim()) return 'other'
+  const second = detectCategory(normalizedDescription)
+  return second === 'other' ? 'other' : second
 }
 
 /** Strip all amounts; tidy stray hyphens from patterns like "Credit-". */
@@ -194,7 +208,7 @@ export function parseTransactionsFromText(text: string): Transaction[] {
     if (HEADER_LIKE.test(rawDesc)) continue
 
     const description = normalizeDescription(rawDesc)
-    const category = detectCategory(rawDesc) // run on pre-normalized text for better keyword coverage
+    const category = detectCategoryWithFallback(rawDesc, description)
 
     // Description keywords take priority over structural inference
     const type = inferTypeFromDescription(description) ?? structuralType
