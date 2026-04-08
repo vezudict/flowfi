@@ -1,4 +1,4 @@
-import { fixTransactionCategory } from '@/lib/category-backfill'
+import { normalizeTransaction } from '@/lib/transaction-normalizer'
 import { supabase } from '@/lib/supabase'
 
 export type Transaction = {
@@ -23,10 +23,7 @@ export async function fetchTransactionsForUser(userId: string) {
     return res
   }
 
-  const data = (res.data as Transaction[]).map((tx) => ({
-    ...tx,
-    category: fixTransactionCategory(tx),
-  }))
+  const data = (res.data as Transaction[]).map(normalizeTransaction)
 
   return { ...res, data }
 }

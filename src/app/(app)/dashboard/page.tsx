@@ -45,6 +45,7 @@ import {
   uniqueCategoriesFromTransactions,
   type TransactionFilterState,
 } from '@/lib/transaction-filters'
+import { normalizeTransaction } from '@/lib/transaction-normalizer'
 import {
   deleteTransaction,
   fetchTransactionsForUser,
@@ -409,7 +410,8 @@ export default function DashboardPage() {
   }, [user, loadDashboard])
 
   function handleTransactionSaved(updated: Transaction) {
-    setTransactions((prev) => prev.map((t) => (t.id === updated.id ? updated : t)))
+    const normalized = normalizeTransaction(updated)
+    setTransactions((prev) => prev.map((t) => (t.id === normalized.id ? normalized : t)))
   }
 
   async function confirmPendingDelete() {

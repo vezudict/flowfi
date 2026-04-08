@@ -16,7 +16,8 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/recurring-transactions.ts` | Detect recurring debits, insight copy | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |
 | `src/lib/category-suggestion.ts` | **`CATEGORY_KEYWORDS`** map + **`detectCategory(description)`** (substring match, ordered buckets; dev-only `CATEGORY DETECTED` log); **`normalizeCategoryLabel`** / **`finalizeTransactionCategory`** (normalize + override **other** when keywords hit); **`resolveTransactionCategory`** (CSV: explicit plausible column unless other-like, then keywords); **`resolvePdfImportCategory`** (keywords then credit→`income`); **`suggestCategoryFromDescription`** for dashboard/edit UI; analytics helpers; shared by **`category-backfill`** | Dashboard add + edit, **CSV** (`csv-transactions` + `resolveTransactionCategory`), **PDF** text parse (`detectCategory` in `parse-transactions-from-text`, confirm via `resolvePdfImportCategory`), **POST/PATCH/import** (`finalizeTransactionCategory` in `sensitive-inputs`), **soft backfill** (`fixTransactionCategory`) |
-| `src/lib/category-backfill.ts` | **`fixTransactionCategory(tx)`** — if category is other-like and **`detectCategory(description)`** is not `other`, return detected label; dev-only `FIXED CATEGORY` log when updated; **no DB writes** | Called from **`fetchTransactionsForUser`** so dashboard list/analytics see repaired categories for legacy rows |
+| `src/lib/category-backfill.ts` | **`fixTransactionCategory(tx)`** — if category is other-like and **`detectCategory(description)`** is not `other`, return detected label; dev-only `FIXED CATEGORY` log when updated; **no DB writes** | Called via `normalizeTransaction` |
+| `src/lib/transaction-normalizer.ts` | **`normalizeTransaction(tx)`** — single source of truth for client-side normalization; applies `fixTransactionCategory`; dev-only `CATEGORY FLOW` log on mismatch | `fetchTransactionsForUser` (fetch path), `handleTransactionSaved` (edit path) |
 | `src/lib/transaction-filters.ts` | Search/date/category filters | Dashboard transaction list |
 | `src/lib/format-currency.ts` | `Intl` currency formatting | UI everywhere |
 | `src/lib/currencies.ts` | Supported codes, locale metadata | Settings, formatting |
@@ -28,7 +29,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/decision-engine.ts` | Decision engine rules / outputs | Decision tool |
 | `src/lib/csv-transactions.ts` | Parse/normalize CSV rows for import | Import tool, API import |
 | `src/lib/parse-transactions-from-text.ts` | Regex PDF text → transaction candidates; **`detectCategoryWithFallback`** calls shared **`detectCategory`** from `category-suggestion` (raw + UPI-stripped description) | PDF pipeline, preview; import confirm still uses **`resolvePdfImportCategory`** |
-| `src/lib/transactions.ts` | Client fetch/delete helpers; `Transaction` type; **`fetchTransactionsForUser`** maps rows through **`fixTransactionCategory`** (soft backfill, post-fetch only) | Dashboard, modals |
+| `src/lib/transactions.ts` | Client fetch/delete helpers; `Transaction` type; **`fetchTransactionsForUser`** maps rows through **`normalizeTransaction`** (soft backfill, post-fetch only) | Dashboard, modals |
 | `src/lib/authed-api.ts` | Bearer `fetch` + JSON helpers | Client → API routes |
 | `src/lib/supabase-server.ts` | Service role / user from token for Route Handlers | All `api/*` mutations |
 | `src/lib/supabase.ts` | Browser Supabase client | Auth context, client data |
@@ -174,8 +175,8 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 
 ### Transactions
 
-- **Logic:** `transactions.ts`, `category-backfill.ts`, `validation/sensitive-inputs.ts`, `transaction-flow.ts`, `transaction-analytics.ts`
-- **Soft category backfill:** `fetchTransactionsForUser` applies `fixTransactionCategory` so legacy `other` rows display inferred buckets from description (DB unchanged until a future backfill API).
+- **Logic:** `transactions.ts`, `category-backfill.ts`, `transaction-normalizer.ts`, `validation/sensitive-inputs.ts`, `transaction-flow.ts`, `transaction-analytics.ts`
+- **Soft category backfill:** `normalizeTransaction` / `fixTransactionCategory` on fetch and after edit save so legacy `other` rows display inferred buckets from description (DB unchanged until a future backfill API).
 - **API:** `api/transactions/*`, `api/transactions/import`
 - **UI:** `dashboard/page.tsx` (list, add, filters, bulk), `TransactionEditModal.tsx`
 

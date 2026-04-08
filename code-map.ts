@@ -12,6 +12,7 @@ export const codeMap = {
     financialHealthScore: 'src/lib/financial-health-score.ts',
     categorySuggestion: 'src/lib/category-suggestion.ts',
     categoryBackfill: 'src/lib/category-backfill.ts',
+    transactionNormalizer: 'src/lib/transaction-normalizer.ts',
     transactionFilters: 'src/lib/transaction-filters.ts',
     transactions: 'src/lib/transactions.ts',
     sensitiveInputs: 'src/lib/validation/sensitive-inputs.ts',
