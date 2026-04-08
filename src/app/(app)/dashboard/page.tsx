@@ -117,7 +117,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
   return (
     <li className="list-none">
       <div
-        className={`group flex items-start gap-3 rounded-lg border px-4 py-3 outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-within:ring-2 focus-within:ring-indigo-500/30 ${
+        className={`group flex items-center gap-3 rounded-lg border px-4 py-4 outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-within:ring-2 focus-within:ring-indigo-500/30 ${
           showSelectedChrome
             ? 'border-indigo-400/40 bg-indigo-500/[0.06] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.12)] dark:border-indigo-500/35 dark:bg-indigo-500/10'
             : 'border-zinc-200/40 bg-transparent hover:bg-black/[0.03] dark:border-white/5 dark:hover:bg-white/5'
@@ -128,7 +128,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
           aria-pressed={isSelected}
           aria-label={`${isSelected ? 'Deselect' : 'Select'} ${tx.category}`}
           onClick={() => onToggle(tx.id)}
-          className={`relative mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
+          className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
             showSelectedChrome
               ? 'border-indigo-600 bg-indigo-600 text-white dark:border-indigo-500 dark:bg-indigo-500'
               : 'border-zinc-300 bg-white group-hover:border-indigo-400/70 dark:border-zinc-600 dark:bg-zinc-900 dark:group-hover:border-indigo-500/60'
@@ -161,15 +161,17 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
           </AnimatePresence>
         </button>
 
-        <div className="min-w-0 flex-1 pr-2">
-          <p className="truncate text-sm font-semibold text-zinc-900 dark:text-zinc-50">{titleLine}</p>
-          <p className="mt-0.5 truncate text-xs text-zinc-500 dark:text-zinc-400">{metaLine}</p>
+        <div className="flex min-w-0 flex-1 flex-col gap-1 pr-2 leading-relaxed">
+          <p className="truncate text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+            {titleLine}
+          </p>
+          <p className="truncate text-xs text-muted-foreground">{metaLine}</p>
         </div>
 
-        <div className="flex shrink-0 items-start gap-2 sm:items-center">
-          <div className="flex flex-col items-end gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+        <div className="flex min-w-[120px] shrink-0 items-center justify-end gap-2">
+          <div className="flex items-center gap-2 justify-end">
             <p
-              className={`text-right text-sm font-medium tabular-nums ${
+              className={`text-right text-sm font-medium tabular-nums leading-none ${
                 isCredit ? 'text-emerald-400' : 'text-red-400'
               }`}
             >
@@ -893,7 +895,7 @@ export default function DashboardPage() {
           </div>
 
           {!listLoading && transactions.length > 0 ? (
-            <div className="mt-4 space-y-3 rounded-xl border border-zinc-200/80 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/30 sm:p-4">
+            <div className="mt-4 space-y-2 rounded-lg border border-zinc-200/70 bg-zinc-100/40 p-3 dark:border-zinc-700/50 dark:bg-white/[0.05] sm:p-3">
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
@@ -910,8 +912,8 @@ export default function DashboardPage() {
                   aria-label="Search transactions"
                 />
               </div>
-              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="space-y-1">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="space-y-0.5">
                   <label
                     htmlFor="tx-filter-category"
                     className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
@@ -934,7 +936,7 @@ export default function DashboardPage() {
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <label
                     htmlFor="tx-filter-from"
                     className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
@@ -949,7 +951,7 @@ export default function DashboardPage() {
                     className="tabular-nums"
                   />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   <label
                     htmlFor="tx-filter-to"
                     className="block text-xs font-medium text-zinc-600 dark:text-zinc-400"
@@ -988,8 +990,8 @@ export default function DashboardPage() {
             <div className="mt-4">
               <ul className="space-y-2">
                 {[1, 2, 3, 4].map((i) => (
-                  <li key={i} className="flex items-center justify-between gap-4 py-3">
-                    <div className="min-h-[52px] flex-1 space-y-2">
+                  <li key={i} className="flex items-center justify-between gap-4 py-4">
+                    <div className="min-h-[56px] flex-1 space-y-2">
                       <div className="h-4 w-28 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
                       <div className="h-3 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
                     </div>
