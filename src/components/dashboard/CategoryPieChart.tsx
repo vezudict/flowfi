@@ -26,12 +26,20 @@ type CategoryPieChartProps = {
   data: { name: string; value: number }[]
   title: string
   currency: SupportedCurrencyCode
+  emptyHeading?: string
+  emptyDescription?: string
 }
 
 const cardShell =
   'relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/90 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950/90 dark:hover:shadow-zinc-950/80'
 
-export function CategoryPieChart({ data, title, currency }: CategoryPieChartProps) {
+export function CategoryPieChart({
+  data,
+  title,
+  currency,
+  emptyHeading = 'No spending this month',
+  emptyDescription = 'Category breakdown appears once you log expenses for the current month.',
+}: CategoryPieChartProps) {
   if (data.length === 0) {
     return (
       <div
@@ -46,10 +54,10 @@ export function CategoryPieChart({ data, title, currency }: CategoryPieChartProp
             <PieChartIcon className="h-5 w-5" aria-hidden />
           </div>
           <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            No spending this month
+            {emptyHeading}
           </p>
           <p className="mt-2 text-sm text-zinc-500/90 dark:text-zinc-400/85">
-            Category breakdown appears once you log expenses for the current month.
+            {emptyDescription}
           </p>
           <Link
             href="#add-transaction"

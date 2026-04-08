@@ -3,10 +3,50 @@ import Link from 'next/link'
 import type { SpendingInsight } from '@/lib/spending-insights'
 
 type FinancialInsightsProps = {
-  insights: SpendingInsight[]
+  savingsInsights: SpendingInsight[]
+  expenseInsights: SpendingInsight[]
+  incomeInsights: SpendingInsight[]
+  recurringInsights: SpendingInsight[]
 }
 
-export function FinancialInsights({ insights }: FinancialInsightsProps) {
+function InsightSection({
+  title,
+  insights,
+}: {
+  title: string
+  insights: SpendingInsight[]
+}) {
+  if (insights.length === 0) return null
+  return (
+    <div className="mt-5">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        {title}
+      </h3>
+      <ul className="mt-3 space-y-2.5" role="list">
+        {insights.map((insight) => (
+          <li key={insight.id}>
+            <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300">
+              {insight.text}
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+export function FinancialInsights({
+  savingsInsights,
+  expenseInsights,
+  incomeInsights,
+  recurringInsights,
+}: FinancialInsightsProps) {
+  const total =
+    savingsInsights.length +
+    expenseInsights.length +
+    incomeInsights.length +
+    recurringInsights.length
+
   return (
     <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/40 dark:hover:shadow-zinc-950/80">
       <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent dark:from-indigo-400/[0.04]" />
@@ -15,10 +55,10 @@ export function FinancialInsights({ insights }: FinancialInsightsProps) {
           Financial insights
         </h2>
         <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Savings estimate, spending trends (expenses only), income summary, and recurring charges.
-          Income categories are excluded from expense insights.
+          Spending uses debits only (category “income” excluded). Income uses credits. Savings = income
+          minus expenses.
         </p>
-        {insights.length === 0 ? (
+        {total === 0 ? (
           <div className="mx-auto mt-6 flex max-w-sm flex-col items-center justify-center px-4 py-8 text-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
               <Lightbulb className="h-5 w-5" aria-hidden />
@@ -27,8 +67,7 @@ export function FinancialInsights({ insights }: FinancialInsightsProps) {
               No insights yet
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500/90 dark:text-zinc-400/85">
-              Add expenses and tag deposits as Income or Salary to see spending vs income, savings, and
-              trends.
+              Add debits for spending and credits for income to see savings, spending, and income insights.
             </p>
             <Link
               href="#add-transaction"
@@ -38,15 +77,12 @@ export function FinancialInsights({ insights }: FinancialInsightsProps) {
             </Link>
           </div>
         ) : (
-          <ul className="mt-6 space-y-3" role="list">
-            {insights.map((insight) => (
-              <li key={insight.id}>
-                <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300">
-                  {insight.text}
-                </div>
-              </li>
-            ))}
-          </ul>
+          <div className="mt-2">
+            <InsightSection title="Savings" insights={savingsInsights} />
+            <InsightSection title="Spending" insights={expenseInsights} />
+            <InsightSection title="Income" insights={incomeInsights} />
+            <InsightSection title="Recurring" insights={recurringInsights} />
+          </div>
         )}
       </div>
     </section>

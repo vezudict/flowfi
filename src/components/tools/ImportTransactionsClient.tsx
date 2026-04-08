@@ -69,12 +69,19 @@ export function ImportTransactionsClient() {
     setImportSuccess(null)
 
     const toInsert = preview.rows
-      .filter((r) => r.isValid && r.createdAtIso && r.amount !== null)
+      .filter(
+        (r) =>
+          r.isValid &&
+          r.createdAtIso &&
+          r.amount !== null &&
+          r.transactionType !== null,
+      )
       .map((r) => ({
         amount: r.amount as number,
         category: r.resolvedCategory,
         description: r.description,
         createdAt: r.createdAtIso as string,
+        transaction_type: r.transactionType as 'debit' | 'credit',
       }))
 
     if (toInsert.length === 0) {
@@ -140,7 +147,10 @@ export function ImportTransactionsClient() {
           Header row must include{' '}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">date</span>,{' '}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">description</span>, and{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">amount</span>.
+          <span className="font-mono text-zinc-700 dark:text-zinc-300">amount</span>.{' '}
+          <span className="text-zinc-600 dark:text-zinc-300">
+            Negative amounts import as credits (income); positive as debits (expenses). Stored amounts are absolute values.
+          </span>{' '}
           Optional <span className="font-mono text-zinc-700 dark:text-zinc-300">category</span> is
           used when valid; otherwise categories are inferred from the description or set to{' '}
           <span className="font-mono text-zinc-700 dark:text-zinc-300">Other</span>.

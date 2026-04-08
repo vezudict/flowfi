@@ -5,6 +5,7 @@ import { Loader2, X } from 'lucide-react'
 import { suggestCategoryFromDescription } from '@/lib/category-suggestion'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
+import { transactionEntryType, type EntryType } from '@/lib/transaction-flow'
 import type { Transaction } from '@/lib/transactions'
 import { toast } from 'sonner'
 
@@ -25,6 +26,7 @@ export function TransactionEditModal({
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
+  const [entryType, setEntryType] = useState<EntryType>('debit')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
 
@@ -38,6 +40,7 @@ export function TransactionEditModal({
     setAmount(String(transaction.amount))
     setCategory(transaction.category)
     setDescription(transaction.description ?? '')
+    setEntryType(transactionEntryType(transaction))
     setFormError(null)
   }, [transaction])
 
@@ -74,6 +77,7 @@ export function TransactionEditModal({
         amount: parsed,
         category: cat,
         description: desc.length ? desc : null,
+        transactionType: entryType,
       },
     })
     const result = await readAuthedJson<{ data: Transaction }>(res)
@@ -120,6 +124,35 @@ export function TransactionEditModal({
         </p>
 
         <form onSubmit={handleSubmit} className="mt-5 space-y-4">
+          <div className="space-y-2">
+            <span className="block text-xs font-medium text-zinc-600 dark:text-zinc-400">
+              Entry type
+            </span>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setEntryType('debit')}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                  entryType === 'debit'
+                    ? 'border-indigo-600 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-950/50 dark:text-indigo-100'
+                    : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200'
+                }`}
+              >
+                Debit (expense)
+              </button>
+              <button
+                type="button"
+                onClick={() => setEntryType('credit')}
+                className={`rounded-lg border px-3 py-2 text-xs font-medium transition-colors ${
+                  entryType === 'credit'
+                    ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-100'
+                    : 'border-zinc-300 bg-white text-zinc-700 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200'
+                }`}
+              >
+                Credit (income)
+              </button>
+            </div>
+          </div>
           {formError ? (
             <div
               className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"

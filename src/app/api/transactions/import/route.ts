@@ -55,6 +55,7 @@ export async function POST(request: Request) {
       category: r.category,
       description: r.description,
       created_at: r.createdAt,
+      transaction_type: r.transaction_type,
     }))
 
     const { error } = await supabase.from('transactions').insert(payload)

@@ -10,7 +10,10 @@ export type PreviewRow = {
   /** Present when CSV has a `category` column */
   categoryRaw: string
   createdAtIso: string | null
+  /** Stored amount (always positive); sign from CSV sets debit vs credit when no type column */
   amount: number | null
+  /** debit = expense, credit = income */
+  transactionType: 'debit' | 'credit' | null
   description: string | null
   /** Category that will be stored (CSV if valid, else keywords, else Other) */
   resolvedCategory: string
@@ -94,8 +97,20 @@ function buildRow(
   const { iso: createdAtIso, error: dateErr } = parseDateRaw(dateRaw)
   if (dateErr) errors.push(dateErr)
 
-  const { value: amount, error: amtErr } = parseAmount(amountRaw)
+  const { value: signedAmount, error: amtErr } = parseAmount(amountRaw)
   if (amtErr) errors.push(amtErr)
+
+  let amount: number | null = null
+  let transactionType: 'debit' | 'credit' | null = null
+  if (signedAmount !== null && !amtErr) {
+    if (signedAmount === 0) {
+      errors.push('Amount cannot be zero')
+    } else {
+      amount = Math.abs(signedAmount)
+      /** Bank-style CSV: negative amount = credit (income), positive = debit (expense). */
+      transactionType = signedAmount < 0 ? 'credit' : 'debit'
+    }
+  }
 
   const description = descriptionRaw.trim()
   const descriptionOut = description.length ? description : null
@@ -113,6 +128,7 @@ function buildRow(
     categoryRaw,
     createdAtIso,
     amount,
+    transactionType,
     description: descriptionOut,
     resolvedCategory,
     errors,

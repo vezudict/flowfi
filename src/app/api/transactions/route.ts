@@ -58,8 +58,9 @@ export async function POST(request: Request) {
         amount: parsed.data.amount,
         category: parsed.data.category,
         description: parsed.data.description,
+        transaction_type: parsed.data.transaction_type,
       })
-      .select('id, user_id, amount, category, description, created_at')
+      .select('id, user_id, amount, category, description, created_at, transaction_type')
       .single()
 
     if (error) {

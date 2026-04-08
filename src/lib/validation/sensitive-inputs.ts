@@ -10,6 +10,21 @@ export type ValidatedTransactionInsert = {
   amount: number
   category: string
   description: string | null
+  transaction_type: 'debit' | 'credit'
+}
+
+function parseEntryType(raw: unknown): 'debit' | 'credit' | null {
+  if (raw === undefined || raw === null) return null
+  if (raw === 'debit' || raw === 'credit') return raw
+  if (typeof raw === 'string' && raw.toLowerCase() === 'debit') return 'debit'
+  if (typeof raw === 'string' && raw.toLowerCase() === 'credit') return 'credit'
+  return null
+}
+
+/** Income-style labels are for credits only; debits must use expense categories. */
+function debitUsesIncomeCategory(category: string): boolean {
+  const key = category.trim().toLowerCase()
+  return key === 'income' || key === 'salary' || key === 'freelance'
 }
 
 export function parseAndValidateTransactionBody(
@@ -47,7 +62,26 @@ export function parseAndValidateTransactionBody(
     description = d.length ? d : null
   }
 
-  return { ok: true, data: { amount, category, description } }
+  const oRec = o as Record<string, unknown>
+  const ttRaw = oRec.transactionType ?? oRec.transaction_type
+  let transaction_type: 'debit' | 'credit' = 'debit'
+  if (ttRaw !== undefined && ttRaw !== null) {
+    const p = parseEntryType(ttRaw)
+    if (p === null) {
+      return { ok: false, message: 'transactionType must be debit or credit.' }
+    }
+    transaction_type = p
+  }
+
+  if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
+    return {
+      ok: false,
+      message:
+        'Expenses cannot use income categories (Income, Salary, Freelance). Use an expense category for debits, or Credit for deposits.',
+    }
+  }
+
+  return { ok: true, data: { amount, category, description, transaction_type } }
 }
 
 export function parseAndValidateBudgetBody(
@@ -109,20 +143,32 @@ export function parseAndValidateImportBody(
     }
     const row = r as Record<string, unknown>
     const amountRaw = row.amount
-    const amount =
+    const signed =
       typeof amountRaw === 'number'
         ? amountRaw
         : typeof amountRaw === 'string'
           ? Number(amountRaw)
           : NaN
-    if (!Number.isFinite(amount) || amount < 0 || amount > MAX_AMOUNT) {
+    if (!Number.isFinite(signed) || signed === 0 || Math.abs(signed) > MAX_AMOUNT) {
       return { ok: false, message: `Invalid amount at row ${i + 1}.` }
     }
+    const amount = Math.abs(signed)
+
+    const ttFromBody =
+      parseEntryType(row.transactionType) ?? parseEntryType(row.transaction_type)
+    const transaction_type: 'debit' | 'credit' =
+      ttFromBody ?? (signed < 0 ? 'credit' : 'debit')
     const categoryRaw = row.category
     const category =
       typeof categoryRaw === 'string' ? categoryRaw.trim().replace(/\s+/g, ' ') : ''
     if (category.length < 1 || category.length > MAX_CATEGORY_LEN) {
       return { ok: false, message: `Invalid category at row ${i + 1}.` }
+    }
+    if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
+      return {
+        ok: false,
+        message: `Row ${i + 1}: debits cannot use income categories (Income, Salary, Freelance).`,
+      }
     }
     let description: string | null = null
     if (row.description !== null && row.description !== undefined) {
@@ -143,7 +189,7 @@ export function parseAndValidateImportBody(
     if (Number.isNaN(Date.parse(created))) {
       return { ok: false, message: `Invalid date at row ${i + 1}.` }
     }
-    out.push({ amount, category, description, createdAt: created })
+    out.push({ amount, category, description, createdAt: created, transaction_type })
   }
 
   return { ok: true, data: out }

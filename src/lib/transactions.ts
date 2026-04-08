@@ -7,12 +7,14 @@ export type Transaction = {
   category: string
   description: string | null
   created_at: string
+  /** debit = expense, credit = income (optional until row is refreshed after migration). */
+  transaction_type?: 'debit' | 'credit'
 }
 
 export async function fetchTransactionsForUser(userId: string) {
   return supabase
     .from('transactions')
-    .select('id, user_id, amount, category, description, created_at')
+    .select('id, user_id, amount, category, description, created_at, transaction_type')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
 }
@@ -22,12 +24,14 @@ export async function insertTransaction(payload: {
   amount: number
   category: string
   description: string | null
+  transaction_type?: 'debit' | 'credit'
 }) {
   return supabase.from('transactions').insert({
     user_id: payload.userId,
     amount: payload.amount,
     category: payload.category,
     description: payload.description,
+    transaction_type: payload.transaction_type ?? 'debit',
   })
 }
 
@@ -37,6 +41,7 @@ export async function updateTransaction(payload: {
   amount: number
   category: string
   description: string | null
+  transaction_type?: 'debit' | 'credit'
 }) {
   return supabase
     .from('transactions')
@@ -44,10 +49,11 @@ export async function updateTransaction(payload: {
       amount: payload.amount,
       category: payload.category,
       description: payload.description,
+      transaction_type: payload.transaction_type ?? 'debit',
     })
     .eq('id', payload.id)
     .eq('user_id', payload.userId)
-    .select('id, user_id, amount, category, description, created_at')
+    .select('id, user_id, amount, category, description, created_at, transaction_type')
     .single()
 }
 
@@ -60,6 +66,7 @@ export type ImportedTransactionRow = {
   category: string
   description: string | null
   createdAt: string
+  transaction_type: 'debit' | 'credit'
 }
 
 export async function insertImportedTransactions(
@@ -75,6 +82,7 @@ export async function insertImportedTransactions(
     category: r.category,
     description: r.description,
     created_at: r.createdAt,
+    transaction_type: r.transaction_type,
   }))
   return supabase.from('transactions').insert(payload)
 }

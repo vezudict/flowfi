@@ -60,10 +60,11 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         amount: parsed.data.amount,
         category: parsed.data.category,
         description: parsed.data.description,
+        transaction_type: parsed.data.transaction_type,
       })
       .eq('id', id)
       .eq('user_id', user.id)
-      .select('id, user_id, amount, category, description, created_at')
+      .select('id, user_id, amount, category, description, created_at, transaction_type')
       .single()
 
     if (error) {

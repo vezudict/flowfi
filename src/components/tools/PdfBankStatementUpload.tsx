@@ -237,6 +237,7 @@ export function PdfBankStatementUpload() {
         category,
         description: desc.length ? desc : null,
         createdAt,
+        transaction_type: r.type === 'credit' ? 'credit' : 'debit',
       }
     })
 

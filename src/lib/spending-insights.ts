@@ -1,6 +1,10 @@
-import { categoryForAnalytics, isIncomeCategoryLabel } from '@/lib/category-suggestion'
+import { categoryForAnalytics } from '@/lib/category-suggestion'
 import { DEFAULT_CURRENCY, type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
+import {
+  isExpenseForMetrics,
+  isIncomeForMetrics,
+} from '@/lib/transaction-flow'
 import { normalizeAmount } from '@/lib/transaction-analytics'
 import type { Transaction } from '@/lib/transactions'
 
@@ -244,7 +248,7 @@ function totalIncomeForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   return transactions.reduce((sum, tx) => {
-    if (!isIncomeCategoryLabel(tx.category)) return sum
+    if (!isIncomeForMetrics(tx)) return sum
     const t = new Date(tx.created_at)
     if (t.getFullYear() === y && t.getMonth() === m) {
       return sum + Math.abs(normalizeAmount(tx.amount))
@@ -257,7 +261,7 @@ function totalExpenseForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   return transactions.reduce((sum, tx) => {
-    if (isIncomeCategoryLabel(tx.category)) return sum
+    if (!isExpenseForMetrics(tx)) return sum
     const t = new Date(tx.created_at)
     if (t.getFullYear() === y && t.getMonth() === m) {
       return sum + Math.abs(normalizeAmount(tx.amount))
@@ -271,7 +275,7 @@ function incomeCategoryTotalsForMonth(transactions: Transaction[], ref: Date): M
   const m = ref.getMonth()
   const map = new Map<string, number>()
   for (const tx of transactions) {
-    if (!isIncomeCategoryLabel(tx.category)) continue
+    if (!isIncomeForMetrics(tx)) continue
     const t = new Date(tx.created_at)
     if (t.getFullYear() !== y || t.getMonth() !== m) continue
     const cat = categoryForAnalytics(tx.category)
@@ -301,7 +305,7 @@ export function buildSavingsInsights(
     return [
       {
         id: 'savings-no-income',
-        text: `You spent about ${fmt(expenses)} this month. Log salary or deposits under Income to track savings (income isn’t counted as spending).`,
+        text: `You spent about ${fmt(expenses)} this month in debits. Add credits for salary or deposits to track income and savings.`,
       },
     ]
   }
@@ -311,14 +315,14 @@ export function buildSavingsInsights(
     return [
       {
         id: 'savings-net',
-        text: `You saved about ${fmt(net)} this month after income minus expenses.`,
+        text: `You saved ${fmt(net)} this month.`,
       },
     ]
   }
   return [
     {
       id: 'savings-net',
-      text: `Spending ran about ${fmt(-net)} ahead of income this month.`,
+      text: `You spent ${fmt(-net)} more than you earned this month.`,
     },
   ]
 }
@@ -336,10 +340,8 @@ export function buildIncomeInsights(
       : formatCurrency(value, currency)
 
   const currentRef = ref
-  const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
 
   const incomeCurrent = totalIncomeForMonth(transactions, currentRef)
-  const incomePrev = totalIncomeForMonth(transactions, prevRef)
   const byCat = incomeCategoryTotalsForMonth(transactions, currentRef)
 
   let top: { category: string; amount: number } | null = null
@@ -352,13 +354,13 @@ export function buildIncomeInsights(
   if (incomeCurrent <= 0) {
     insights.push({
       id: 'income-none',
-      text: 'No income logged this month. Tag deposits as Income or Salary to track inflows and savings.',
+      text: 'No credit (income) transactions this month. Record inflows as Credit when adding or importing to track income.',
     })
     return insights
   }
 
   const incomeTxThisMonth = transactions.filter(
-    (t) => isIncomeCategoryLabel(t.category) && isInCalendarMonth(t.created_at, currentRef),
+    (t) => isIncomeForMetrics(t) && isInCalendarMonth(t.created_at, currentRef),
   )
 
   const depositPhrase =
@@ -377,29 +379,14 @@ export function buildIncomeInsights(
     })
   }
 
-  if (incomePrev > 0) {
-    const change = ((incomeCurrent - incomePrev) / incomePrev) * 100
-    const rounded = Math.round(change)
-    if (rounded === 0) {
-      insights.push({
-        id: 'income-mom',
-        text: `Income is about the same as last month (${fmt(incomeCurrent)} vs ${fmt(incomePrev)}).`,
-      })
-    } else if (rounded > 0) {
-      insights.push({
-        id: 'income-mom',
-        text: `Income is up about ${rounded}% compared with last month.`,
-      })
-    } else {
-      insights.push({
-        id: 'income-mom',
-        text: `Income is down about ${Math.abs(rounded)}% compared with last month.`,
-      })
-    }
-  } else if (incomePrev === 0 && incomeCurrent > 0) {
+  const nDeposits = incomeTxThisMonth.length
+  if (nDeposits >= 1) {
     insights.push({
-      id: 'income-mom',
-      text: 'Last month had no logged income to compare against.',
+      id: 'income-frequency',
+      text:
+        nDeposits === 1
+          ? 'One income deposit this month.'
+          : `${nDeposits} income deposits this month — cadence may matter if you rely on regular paydays.`,
     })
   }
 
@@ -426,7 +413,8 @@ export function buildIncomeInsights(
   return insights
 }
 
-export function buildSpendingInsights(
+/** Debit-only spending insights (totals, top category, averages, spikes). */
+export function buildExpenseInsights(
   transactions: Transaction[],
   ref: Date = new Date(),
   currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
@@ -435,12 +423,12 @@ export function buildSpendingInsights(
     return []
   }
 
-  const expenseTx = transactions.filter((t) => !isIncomeCategoryLabel(t.category))
+  const expenseTx = transactions.filter((t) => isExpenseForMetrics(t))
   if (expenseTx.length === 0) {
     return [
       {
         id: 'expenses-none',
-        text: 'No expense transactions yet—only income-style categories in your ledger. Add purchases (Food, Transport, etc.) for spending insights.',
+        text: 'No debit (expense) transactions in your ledger yet. Add purchases as Debit or import statement debits for spending insights.',
       },
     ]
   }
@@ -459,6 +447,13 @@ export function buildSpendingInsights(
       ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
       : formatCurrency(value, currency)
   const insights: SpendingInsight[] = []
+
+  if (currentTotal > 0) {
+    insights.push({
+      id: 'expense-total-debits',
+      text: `Total spending this month (debits only): about ${fmt(currentTotal)}.`,
+    })
+  }
 
   const o = overallMomInsight(currentTotal, previousTotal, fmt)
   if (o) insights.push(o)
@@ -487,3 +482,6 @@ export function buildSpendingInsights(
 
   return insights
 }
+
+/** @deprecated Use `buildExpenseInsights` */
+export const buildSpendingInsights = buildExpenseInsights

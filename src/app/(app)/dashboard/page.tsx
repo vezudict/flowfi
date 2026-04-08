@@ -11,6 +11,7 @@ import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
+import { NetSavingsCard } from '@/components/dashboard/NetSavingsCard'
 import { SummaryCard } from '@/components/dashboard/SummaryCard'
 import { TransactionEditModal } from '@/components/dashboard/TransactionEditModal'
 import { Modal } from '@/components/ui/Modal'
@@ -29,11 +30,12 @@ import {
   getRecurringTransactionIds,
 } from '@/lib/recurring-transactions'
 import {
+  buildExpenseInsights,
   buildIncomeInsights,
   buildSavingsInsights,
-  buildSpendingInsights,
 } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
+import { transactionEntryType } from '@/lib/transaction-flow'
 import {
   countActiveFilters,
   emptyTransactionFilters,
@@ -197,6 +199,15 @@ function SelectableTransactionRow({
           <div className="min-w-0 flex-1">
             <p className="flex flex-wrap items-center gap-2 font-semibold text-zinc-900 dark:text-zinc-50">
               <span>{tx.category}</span>
+              <span
+                className={`inline-flex shrink-0 rounded-md px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${
+                  transactionEntryType(tx) === 'credit'
+                    ? 'bg-emerald-500/15 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300'
+                    : 'bg-zinc-500/12 text-zinc-600 dark:bg-zinc-500/20 dark:text-zinc-400'
+                }`}
+              >
+                {transactionEntryType(tx) === 'credit' ? 'Credit' : 'Debit'}
+              </span>
               {isRecurring ? (
                 <span className="inline-flex items-center rounded-md bg-violet-500/15 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-violet-700 dark:bg-violet-500/20 dark:text-violet-300">
                   Recurring
@@ -256,8 +267,8 @@ function DashboardLoadingSkeleton() {
         <div className="h-10 w-52 animate-pulse rounded-lg bg-zinc-200 dark:bg-zinc-800" />
         <div className="h-4 w-40 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800/80" />
       </div>
-      <div className="grid min-h-[116px] gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {[1, 2, 3].map((i) => (
+      <div className="grid min-h-[116px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
             className="h-[116px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800"
@@ -296,6 +307,8 @@ export default function DashboardPage() {
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
   const [description, setDescription] = useState('')
+  const [entryType, setEntryType] = useState<'debit' | 'credit'>('debit')
+  const [chartMode, setChartMode] = useState<'spending' | 'income'>('spending')
   const [submitting, setSubmitting] = useState(false)
   const categorySyncedFromSuggestion = useRef<string | null>(null)
 
@@ -328,8 +341,8 @@ export default function DashboardPage() {
     [transactions],
   )
 
-  const spendingInsights = useMemo(
-    () => buildSpendingInsights(transactions, new Date(), currency),
+  const expenseInsights = useMemo(
+    () => buildExpenseInsights(transactions, new Date(), currency),
     [transactions, currency],
   )
 
@@ -353,15 +366,16 @@ export default function DashboardPage() {
     [transactions, currency],
   )
 
-  const allSpendingInsights = useMemo(
-    () => [
-      ...savingsInsights,
-      ...spendingInsights,
-      ...incomeInsights,
-      ...recurringInsights,
-    ],
-    [savingsInsights, spendingInsights, incomeInsights, recurringInsights],
-  )
+  const incomeComparisonHint = useMemo(() => {
+    const curr = analytics.currentMonthIncomeTotal
+    const prev = analytics.previousMonthIncomeTotal
+    if (curr === 0 && prev === 0) return 'Credits only · add deposits'
+    if (prev === 0) return curr > 0 ? 'No baseline last month' : 'No income last month'
+    const diff = curr - prev
+    if (diff === 0) return 'Same total as last month'
+    if (diff > 0) return `Up ${formatCurrency(diff, currency)} vs prior month`
+    return `Down ${formatCurrency(-diff, currency)} vs prior month`
+  }, [analytics.currentMonthIncomeTotal, analytics.previousMonthIncomeTotal, currency])
 
   const financialHealth = useMemo(
     () =>
@@ -563,6 +577,7 @@ export default function DashboardPage() {
         amount: parsed,
         category: cat,
         description: desc.length ? desc : null,
+        transactionType: entryType,
       },
     })
     const insertResult = await readAuthedJson<{ data: Transaction }>(res)
@@ -579,6 +594,7 @@ export default function DashboardPage() {
     setAmount('')
     setCategory('')
     setDescription('')
+    setEntryType('debit')
     categorySyncedFromSuggestion.current = null
     await loadDashboard()
   }
@@ -604,8 +620,8 @@ export default function DashboardPage() {
       </header>
 
       {listLoading ? (
-        <div className="grid min-h-[116px] gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {[1, 2, 3].map((i) => (
+        <div className="grid min-h-[116px] gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
               className="h-[116px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800"
@@ -613,19 +629,24 @@ export default function DashboardPage() {
           ))}
         </div>
       ) : (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             title="Spending · this month"
             value={formatCurrency(analytics.currentMonthTotal, currency)}
-            hint={monthLabel}
+            hint={`${monthLabel} · debits only`}
+           />
+          <SummaryCard
+            title="Income · this month"
+            value={formatCurrency(analytics.currentMonthIncomeTotal, currency)}
+            hint={incomeComparisonHint}
+          />
+          <NetSavingsCard
+            amount={analytics.netSavingsThisMonth}
+            monthLabel={monthLabel}
+            currency={currency}
           />
           <SummaryCard
-            title="Transactions"
-            value={String(analytics.transactionCount)}
-            hint="All time"
-          />
-          <SummaryCard
-            title="Top category · this month"
+            title="Top spending category · this month"
             value={
               analytics.topCategory ? analytics.topCategory.category : '—'
             }
@@ -659,7 +680,12 @@ export default function DashboardPage() {
       {listLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
-        <FinancialInsights insights={allSpendingInsights} />
+        <FinancialInsights
+          savingsInsights={savingsInsights}
+          expenseInsights={expenseInsights}
+          incomeInsights={incomeInsights}
+          recurringInsights={recurringInsights}
+        />
       )}
 
       {listLoading ? (
@@ -668,17 +694,75 @@ export default function DashboardPage() {
           <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
         </section>
       ) : (
-        <section className="grid gap-4 lg:grid-cols-2">
-          <CategoryPieChart
-            title="Spending by category"
-            data={analytics.pieByCategory}
-            currency={currency}
-          />
-          <SpendingBarChart
-            title="Over time · this month"
-            data={analytics.dailyInCurrentMonth}
-            currency={currency}
-          />
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-zinc-500 dark:text-zinc-400">
+              {chartMode === 'spending'
+                ? 'Debits by category and per day (income excluded).'
+                : 'Credits by category and per day.'}
+            </p>
+            <div className="flex rounded-lg border border-zinc-200 bg-zinc-50/80 p-0.5 dark:border-zinc-700 dark:bg-zinc-900/50">
+              <button
+                type="button"
+                onClick={() => setChartMode('spending')}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                  chartMode === 'spending'
+                    ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50'
+                    : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                }`}
+              >
+                Spending
+              </button>
+              <button
+                type="button"
+                onClick={() => setChartMode('income')}
+                className={`rounded-md px-3 py-1.5 text-xs font-medium transition-colors duration-150 ${
+                  chartMode === 'income'
+                    ? 'bg-white text-zinc-900 shadow-sm dark:bg-zinc-800 dark:text-zinc-50'
+                    : 'text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-200'
+                }`}
+              >
+                Income
+              </button>
+            </div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <CategoryPieChart
+              title={chartMode === 'spending' ? 'Spending by category' : 'Income by category'}
+              data={
+                chartMode === 'spending'
+                  ? analytics.pieByCategory
+                  : analytics.incomePieByCategory
+              }
+              currency={currency}
+              emptyHeading={chartMode === 'income' ? 'No income this month' : undefined}
+              emptyDescription={
+                chartMode === 'income'
+                  ? 'Credit transactions dated this month will appear here.'
+                  : undefined
+              }
+            />
+            <SpendingBarChart
+              title={
+                chartMode === 'spending'
+                  ? 'Spending over time · this month'
+                  : 'Income over time · this month'
+              }
+              data={
+                chartMode === 'spending'
+                  ? analytics.dailyInCurrentMonth
+                  : analytics.incomeDailyInCurrentMonth
+              }
+              currency={currency}
+              variant={chartMode === 'spending' ? 'spending' : 'income'}
+              emptyTitle={chartMode === 'income' ? 'No daily income yet' : undefined}
+              emptyDescription={
+                chartMode === 'income'
+                  ? 'Credits with dates in this month fill this chart.'
+                  : undefined
+              }
+            />
+          </div>
         </section>
       )}
 
@@ -704,6 +788,38 @@ export default function DashboardPage() {
           ) : null}
 
           <form onSubmit={handleAddTransaction} className="space-y-4">
+            <div className="space-y-2">
+              <span className="block text-xs font-medium text-zinc-600/90 dark:text-zinc-400/90">
+                Entry type
+              </span>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEntryType('debit')}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    entryType === 'debit'
+                      ? 'border-indigo-600 bg-indigo-50 text-indigo-900 dark:border-indigo-400 dark:bg-indigo-950/50 dark:text-indigo-100'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  Debit (expense)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEntryType('credit')}
+                  className={`rounded-lg border px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    entryType === 'credit'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-900 dark:border-emerald-500 dark:bg-emerald-950/40 dark:text-emerald-100'
+                      : 'border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                  }`}
+                >
+                  Credit (income)
+                </button>
+              </div>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                Debits count toward spending; credits count toward income summaries.
+              </p>
+            </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1.5">
                 <label

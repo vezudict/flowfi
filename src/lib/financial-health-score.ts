@@ -1,9 +1,9 @@
-import { isIncomeCategoryLabel } from '@/lib/category-suggestion'
 import {
   computeAnalytics,
   normalizeAmount,
   type AnalyticsBundle,
 } from '@/lib/transaction-analytics'
+import { isExpenseForMetrics } from '@/lib/transaction-flow'
 import type { Transaction } from '@/lib/transactions'
 
 export type FinancialHealthScoreResult = {
@@ -33,12 +33,12 @@ function isInCurrentMonth(iso: string, ref: Date) {
   )
 }
 
-/** Spending only (excludes income-category rows). */
+/** Debit / expense rows used in spending comparisons (excludes credits and mis-tagged income on debits). */
 function expenseTotalForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   return transactions.reduce((sum, tx) => {
-    if (isIncomeCategoryLabel(tx.category)) return sum
+    if (!isExpenseForMetrics(tx)) return sum
     const t = new Date(tx.created_at)
     if (t.getFullYear() === y && t.getMonth() === m) {
       return sum + Math.abs(normalizeAmount(tx.amount))

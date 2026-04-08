@@ -18,6 +18,10 @@ type SpendingBarChartProps = {
   data: { label: string; amount: number }[]
   title: string
   currency: SupportedCurrencyCode
+  /** Bar fill (spending vs income). */
+  variant?: 'spending' | 'income'
+  emptyTitle?: string
+  emptyDescription?: string
 }
 
 const axisStyle = { fontSize: 11, fill: '#71717a' }
@@ -25,7 +29,15 @@ const axisStyle = { fontSize: 11, fill: '#71717a' }
 const cardShell =
   'relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/90 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-950/90 dark:hover:shadow-zinc-950/80'
 
-export function SpendingBarChart({ data, title, currency }: SpendingBarChartProps) {
+export function SpendingBarChart({
+  data,
+  title,
+  currency,
+  variant = 'spending',
+  emptyTitle = 'No daily totals yet',
+  emptyDescription = 'Spending by day charts itself after you add transactions dated this month.',
+}: SpendingBarChartProps) {
+  const barFill = variant === 'income' ? '#10b981' : '#6366f1'
   const hasSpending = data.some((d) => d.amount > 0)
 
   if (!hasSpending) {
@@ -42,10 +54,10 @@ export function SpendingBarChart({ data, title, currency }: SpendingBarChartProp
             <BarChart3 className="h-5 w-5" aria-hidden />
           </div>
           <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-            No daily totals yet
+            {emptyTitle}
           </p>
           <p className="mt-2 text-sm text-zinc-500/90 dark:text-zinc-400/85">
-            Spending by day charts itself after you add transactions dated this month.
+            {emptyDescription}
           </p>
           <Link
             href="#add-transaction"
@@ -113,7 +125,7 @@ export function SpendingBarChart({ data, title, currency }: SpendingBarChartProp
               />
               <Bar
                 dataKey="amount"
-                fill="#6366f1"
+                fill={barFill}
                 radius={[4, 4, 0, 0]}
                 maxBarSize={40}
               />
