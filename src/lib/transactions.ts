@@ -1,3 +1,4 @@
+import { fixTransactionCategory } from '@/lib/category-backfill'
 import { supabase } from '@/lib/supabase'
 
 export type Transaction = {
@@ -12,11 +13,22 @@ export type Transaction = {
 }
 
 export async function fetchTransactionsForUser(userId: string) {
-  return supabase
+  const res = await supabase
     .from('transactions')
     .select('id, user_id, amount, category, description, created_at, transaction_type')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
+
+  if (res.error || res.data == null) {
+    return res
+  }
+
+  const data = (res.data as Transaction[]).map((tx) => ({
+    ...tx,
+    category: fixTransactionCategory(tx),
+  }))
+
+  return { ...res, data }
 }
 
 export async function insertTransaction(payload: {
