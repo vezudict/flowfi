@@ -64,13 +64,12 @@ export function parseAndValidateTransactionBody(
 
   const oRec = o as Record<string, unknown>
   const ttRaw = oRec.transactionType ?? oRec.transaction_type
-  let transaction_type: 'debit' | 'credit' = 'debit'
-  if (ttRaw !== undefined && ttRaw !== null) {
-    const p = parseEntryType(ttRaw)
-    if (p === null) {
-      return { ok: false, message: 'transactionType must be debit or credit.' }
-    }
-    transaction_type = p
+  if (ttRaw === undefined || ttRaw === null) {
+    return { ok: false, message: 'transactionType is required (debit or credit).' }
+  }
+  const transaction_type = parseEntryType(ttRaw)
+  if (transaction_type === null) {
+    return { ok: false, message: 'transactionType must be debit or credit.' }
   }
 
   if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
