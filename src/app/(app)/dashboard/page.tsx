@@ -571,14 +571,18 @@ export default function DashboardPage() {
 
     setSubmitting(true)
     const desc = description.trim()
+    const postBody = {
+      amount: parsed,
+      category: cat,
+      description: desc.length ? desc : null,
+      transactionType: entryType,
+    }
+    if (process.env.NEXT_PUBLIC_DEBUG_FLOWFI_TX === '1') {
+      console.log('[FlowFi TX DEBUG] POST /api/transactions body', postBody)
+    }
     const res = await authedFetch('/api/transactions', {
       method: 'POST',
-      json: {
-        amount: parsed,
-        category: cat,
-        description: desc.length ? desc : null,
-        transactionType: entryType,
-      },
+      json: postBody,
     })
     const insertResult = await readAuthedJson<{ data: Transaction }>(res)
     setSubmitting(false)

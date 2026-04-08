@@ -10,7 +10,8 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | Path | Does | Affects / relates to |
 |------|------|----------------------|
 | `src/lib/transaction-analytics.ts` | Monthly totals, pie/bar series, net savings, income vs debit splits | Dashboard charts, summary cards |
-| `src/lib/transaction-flow.ts` | `isExpenseForMetrics` / `isIncomeForMetrics` (debit vs credit rules) | Analytics, insights, charts |
+| `src/lib/transaction-flow.ts` | `transactionEntryType` + `isExpenseForMetrics` / `isIncomeForMetrics` (persisted type, else category heuristic) | Analytics, insights, list badges — **must stay aligned** |
+| `src/lib/debug-transaction-flow.ts` | Optional `NEXT_PUBLIC_DEBUG_FLOWFI_TX=1` console trace for debit/credit through analytics/insights | Debugging only; no default logs |
 | `src/lib/spending-insights.ts` | Savings, expense, income, recurring insight bullets | `FinancialInsights` |
 | `src/lib/recurring-transactions.ts` | Detect recurring debits, insight copy | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |

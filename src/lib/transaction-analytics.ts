@@ -1,5 +1,9 @@
 import { categoryForAnalytics } from '@/lib/category-suggestion'
 import {
+  logAnalyticsComputeDebug,
+  logCategorySpendingInputDebug,
+} from '@/lib/debug-transaction-flow'
+import {
   isExpenseForMetrics,
   isIncomeForMetrics,
 } from '@/lib/transaction-flow'
@@ -76,6 +80,14 @@ export function computeAnalytics(
 
   const inMonthExpenseMetrics = inMonth.filter(isExpenseForMetrics)
   const inMonthIncomeMetrics = inMonth.filter(isIncomeForMetrics)
+
+  logAnalyticsComputeDebug(
+    'computeAnalytics (current month window)',
+    inMonth,
+    inMonthExpenseMetrics,
+    inMonthIncomeMetrics,
+  )
+  logCategorySpendingInputDebug(inMonthExpenseMetrics)
 
   const currentMonthTotal = inMonthExpenseMetrics.reduce(
     (sum, tx) => sum + Math.abs(normalizeAmount(tx.amount)),

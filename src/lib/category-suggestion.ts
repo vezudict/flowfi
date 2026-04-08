@@ -47,12 +47,13 @@ export function categoryForAnalytics(raw: string): string {
 
 /**
  * Money-in labels for analytics (not spending). Uses normalized category text.
- * FlowFi does not persist debit/credit on transactions; imports label credits as `income`.
+ * When `transaction_type` is missing, these labels infer credit (see `transactionEntryType`).
  */
 const INCOME_CATEGORY_LABELS = new Set(
   [
     'income',
     'salary',
+    'freelance',
     'payroll',
     'wages',
     'paycheck',

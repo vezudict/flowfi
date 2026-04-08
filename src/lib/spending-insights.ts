@@ -1,6 +1,7 @@
 import { categoryForAnalytics } from '@/lib/category-suggestion'
 import { DEFAULT_CURRENCY, type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
+import { logInsightsInputDebug } from '@/lib/debug-transaction-flow'
 import {
   isExpenseForMetrics,
   isIncomeForMetrics,
@@ -435,6 +436,8 @@ export function buildExpenseInsights(
   currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
 ): SpendingInsight[] {
   if (transactions.length === 0) return []
+
+  logInsightsInputDebug('buildExpenseInsights', transactions)
 
   if (!transactions.some(isExpenseForMetrics)) {
     return [

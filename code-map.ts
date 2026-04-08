@@ -6,6 +6,7 @@ export const codeMap = {
   core: {
     transactionAnalytics: 'src/lib/transaction-analytics.ts',
     transactionFlow: 'src/lib/transaction-flow.ts',
+    debugTransactionFlow: 'src/lib/debug-transaction-flow.ts',
     spendingInsights: 'src/lib/spending-insights.ts',
     recurringTransactions: 'src/lib/recurring-transactions.ts',
     financialHealthScore: 'src/lib/financial-health-score.ts',
