@@ -58,9 +58,20 @@ export async function POST(request: Request) {
       transaction_type: r.transaction_type,
     }))
 
+    const missingType = payload.filter((r) => !r.transaction_type)
+    if (missingType.length > 0) {
+      console.error('[api/transactions/import] rows missing transaction_type', missingType.length)
+      return NextResponse.json({ error: 'One or more rows are missing transaction_type.' }, { status: 400 })
+    }
+
     const { error } = await supabase.from('transactions').insert(payload)
     if (error) {
-      console.error('[api/transactions/import]', error.message)
+      console.error('[api/transactions/import] Supabase insert error:', {
+        code: error.code,
+        message: error.message,
+        details: error.details,
+        hint: error.hint,
+      })
       return NextResponse.json({ error: PUBLIC_ERROR_GENERIC }, { status: 500 })
     }
 

@@ -22,14 +22,17 @@ export function isCreditTransaction(tx: Transaction): boolean {
 
 /**
  * Rows that count toward spending charts, totals, and expense insights.
- * Uses transactionEntryType so legacy rows without transaction_type are
- * classified by category fallback instead of silently dropped.
+ * Strictly requires transaction_type = 'debit' — rows without it are excluded
+ * from all metrics (avoids misclassifying ambiguous legacy rows as spending).
  */
 export function isExpenseForMetrics(tx: Transaction): boolean {
-  return transactionEntryType(tx) === 'debit'
+  return tx.transaction_type === 'debit'
 }
 
-/** Rows that count toward income totals and income insights. */
+/**
+ * Rows that count toward income totals and income insights.
+ * Strictly requires transaction_type = 'credit'.
+ */
 export function isIncomeForMetrics(tx: Transaction): boolean {
-  return transactionEntryType(tx) === 'credit'
+  return tx.transaction_type === 'credit'
 }
