@@ -1,4 +1,4 @@
-import { categoryForAnalytics, isIncomeCategoryLabel } from '@/lib/category-suggestion'
+import { isIncomeCategoryLabel } from '@/lib/category-suggestion'
 import type { Transaction } from '@/lib/transactions'
 
 export type EntryType = 'debit' | 'credit'
@@ -22,16 +22,13 @@ export function isCreditTransaction(tx: Transaction): boolean {
 
 /**
  * Rows that count toward spending charts, totals, and expense insights:
- * debits only, excluding category "income" (mis-tagged rows).
+ * only transactions where transaction_type === 'debit'.
  */
 export function isExpenseForMetrics(tx: Transaction): boolean {
-  if (!isDebitTransaction(tx)) return false
-  const cat = categoryForAnalytics(tx.category).trim().toLowerCase()
-  if (cat === 'income') return false
-  return true
+  return tx.transaction_type === 'debit'
 }
 
 /** Rows that count toward income totals and income insights. */
 export function isIncomeForMetrics(tx: Transaction): boolean {
-  return isCreditTransaction(tx)
+  return tx.transaction_type === 'credit'
 }

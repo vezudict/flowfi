@@ -90,7 +90,7 @@ export function computeAnalytics(
   const byCategory = new Map<string, number>()
   for (const tx of inMonthExpenseMetrics) {
     const cat = categoryForAnalytics(tx.category)
-    if (cat.trim().toLowerCase() === 'income') continue
+    if (cat.toLowerCase() === 'income') continue
     const amt = Math.abs(normalizeAmount(tx.amount))
     byCategory.set(cat, (byCategory.get(cat) ?? 0) + amt)
   }
