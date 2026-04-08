@@ -292,6 +292,16 @@ export default function DashboardPage() {
     })
   }, [suggestedCategory])
 
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && transactions.length > 0) {
+      console.log('ANALYTICS INPUT SAMPLE', transactions.slice(0, 3).map((t) => ({
+        description: t.description,
+        category: t.category,
+        transaction_type: t.transaction_type,
+      })))
+    }
+  }, [transactions])
+
   const analytics = useMemo(
     () => computeAnalytics(transactions),
     [transactions],

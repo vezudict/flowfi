@@ -89,6 +89,10 @@ export function computeAnalytics(
   )
   logCategorySpendingInputDebug(inMonthExpenseMetrics)
 
+  if (process.env.NODE_ENV === 'development') {
+    console.log('ANALYTICS CATEGORY INPUT', inMonthExpenseMetrics.map((t) => t.category))
+  }
+
   const currentMonthTotal = inMonthExpenseMetrics.reduce(
     (sum, tx) => sum + Math.abs(normalizeAmount(tx.amount)),
     0,
@@ -102,7 +106,7 @@ export function computeAnalytics(
   const byCategory = new Map<string, number>()
   for (const tx of inMonthExpenseMetrics) {
     const cat = categoryForAnalytics(tx.category)
-    if (cat.toLowerCase() === 'income') continue
+    if (cat === 'other' || cat.toLowerCase() === 'income') continue
     const amt = Math.abs(normalizeAmount(tx.amount))
     byCategory.set(cat, (byCategory.get(cat) ?? 0) + amt)
   }
@@ -148,6 +152,11 @@ export function computeAnalytics(
     if (!topCategory || amount > topCategory.amount) {
       topCategory = { category, amount }
     }
+  }
+
+  if (process.env.NODE_ENV === 'development') {
+    console.log('CATEGORY TOTALS', Object.fromEntries(byCategory))
+    console.log('TOP CATEGORY', topCategory)
   }
 
   const pieByCategory = [...byCategory.entries()]

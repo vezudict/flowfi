@@ -56,7 +56,7 @@ function expenseCategoryTotals(
     const t = new Date(tx.created_at)
     if (t.getFullYear() !== y || t.getMonth() !== m) continue
     const cat = categoryForAnalytics(tx.category)
-    if (cat.toLowerCase() === 'income') continue
+    if (cat === 'other' || cat.toLowerCase() === 'income') continue
     map.set(cat, (map.get(cat) ?? 0) + Math.abs(normalizeAmount(tx.amount)))
   }
   return map
