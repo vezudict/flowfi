@@ -12,11 +12,12 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/transaction-analytics.ts` | Monthly totals, pie/bar series, net savings, income vs debit splits | Dashboard charts, summary cards |
 | `src/lib/transaction-flow.ts` | `transactionEntryType` + `isExpenseForMetrics` / `isIncomeForMetrics` (persisted type, else category heuristic) | Analytics, insights, list badges — **must stay aligned** |
 | `src/lib/debug-transaction-flow.ts` | Optional `NEXT_PUBLIC_DEBUG_FLOWFI_TX=1` console trace for debit/credit through analytics/insights | Debugging only; no default logs |
-| `src/lib/spending-insights.ts` | Savings, expense, income, recurring insight bullets | `FinancialInsights` |
-| `src/lib/recurring-transactions.ts` | Detect recurring debits, insight copy | Dashboard insights, row badges |
+| `src/lib/spending-insights.ts` | Savings, expense, income insight bullets; category names in copy via **`getCategoryLabel`** | `FinancialInsights` |
+| `src/lib/recurring-transactions.ts` | Detect recurring debits; insight copy uses **`getCategoryLabel`** | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |
 | `src/lib/category-suggestion.ts` | **`CATEGORY_KEYWORDS`** map + **`detectCategory(description)`** (substring match, ordered buckets; dev-only `CATEGORY DETECTED` log); **`normalizeCategoryLabel`** / **`finalizeTransactionCategory`** (normalize + override **other** when keywords hit); **`resolveTransactionCategory`** (CSV: explicit plausible column unless other-like, then keywords); **`resolvePdfImportCategory`** (keywords then credit→`income`); **`suggestCategoryFromDescription`** for dashboard/edit UI; analytics helpers; shared by **`category-backfill`** | Dashboard add + edit, **CSV** (`csv-transactions` + `resolveTransactionCategory`), **PDF** text parse (`detectCategory` in `parse-transactions-from-text`, confirm via `resolvePdfImportCategory`), **POST/PATCH/import** (`finalizeTransactionCategory` in `sensitive-inputs`), **soft backfill** (`fixTransactionCategory`) |
 | `src/lib/category-backfill.ts` | **`fixTransactionCategory(tx)`** — if category is other-like and **`detectCategory(description)`** is not `other`, return detected label; dev-only `FIXED CATEGORY` log when updated; **no DB writes** | Called via `normalizeTransaction` |
+| `src/lib/category-display.ts` | **`CATEGORY_DISPLAY`** / **`CATEGORY_STYLES`** maps; **`getCategoryLabel`** / **`getCategoryStyleClass`** (normalize via `normalizeCategoryLabel` before lookup; unknown → **Misc** / zinc) | Dashboard list, pie **legend/tooltip** (`CategoryPieChart.formatSegmentLabel`), top category card, filter options, add-form suggestion, `TransactionEditModal` suggestion, insight copy (`spending-insights`, `recurring-transactions`) |
 | `src/lib/transaction-normalizer.ts` | **`normalizeTransaction(tx)`** — single source of truth for client-side normalization; applies `fixTransactionCategory`; dev-only `CATEGORY FLOW` log on mismatch | `fetchTransactionsForUser` (fetch path), `handleTransactionSaved` (edit path) |
 | `src/lib/transaction-filters.ts` | Search/date/category filters | Dashboard transaction list |
 | `src/lib/format-currency.ts` | `Intl` currency formatting | UI everywhere |
@@ -54,7 +55,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/app/signup/page.tsx` | Sign-up | Auth |
 | `src/app/guide/page.tsx` | In-app guide | Learn |
 | `src/app/(app)/layout.tsx` | Authenticated shell (`AppShell`) | Dashboard, tools, settings |
-| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, `category · date` meta, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount, row hover `bg-black/[0.03]` / `dark:bg-white/5`, edit/delete fade in | Main product surface |
+| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, **`getCategoryLabel` + `getCategoryStyleClass`** on category meta/title fallback, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount. **`CategoryPieChart`** passes **`formatSegmentLabel={getCategoryLabel}`**. **`SummaryCard`** top category uses display label + accent class | Main product surface |
 | `src/app/(app)/settings/page.tsx` | Appearance, currency | User prefs |
 | `src/app/(app)/tools/page.tsx` | Tools index grid | Navigation |
 | `src/app/(app)/tools/credit-score/page.tsx` | Credit score tool page | Tool shell + client |
@@ -80,12 +81,12 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 
 | Path | Does |
 |------|------|
-| `src/components/dashboard/SummaryCard.tsx` | Metric card |
+| `src/components/dashboard/SummaryCard.tsx` | Metric card; optional **`valueClassName`** (e.g. category accent on top-spending card) |
 | `src/components/dashboard/NetSavingsCard.tsx` | Net savings (income − expenses) |
 | `src/components/dashboard/MonthlyBudgetCard.tsx` | Budget vs spent |
 | `src/components/dashboard/FinancialHealthCard.tsx` | Health score UI |
 | `src/components/dashboard/FinancialInsights.tsx` | Sectioned insight lists |
-| `src/components/dashboard/CategoryPieChart.tsx` | Recharts donut (category breakdown) |
+| `src/components/dashboard/CategoryPieChart.tsx` | Recharts donut; optional **`formatSegmentLabel`** for legend/tooltip (dashboard → **`getCategoryLabel`**) |
 | `src/components/dashboard/SpendingBarChart.tsx` | Recharts bar (daily series) |
 | `src/components/dashboard/TransactionEditModal.tsx` | Edit transaction |
 

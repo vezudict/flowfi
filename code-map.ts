@@ -11,6 +11,7 @@ export const codeMap = {
     recurringTransactions: 'src/lib/recurring-transactions.ts',
     financialHealthScore: 'src/lib/financial-health-score.ts',
     categorySuggestion: 'src/lib/category-suggestion.ts',
+    categoryDisplay: 'src/lib/category-display.ts',
     categoryBackfill: 'src/lib/category-backfill.ts',
     transactionNormalizer: 'src/lib/transaction-normalizer.ts',
     transactionFilters: 'src/lib/transaction-filters.ts',

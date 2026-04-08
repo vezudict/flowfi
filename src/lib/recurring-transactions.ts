@@ -1,3 +1,4 @@
+import { getCategoryLabel } from '@/lib/category-display'
 import { isExpenseForMetrics } from '@/lib/transaction-flow'
 import type { SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
@@ -112,7 +113,7 @@ export function buildRecurringInsights(
           : desc
     insights.push({
       id: `recurring-${first.id}`,
-      text: `Recurring pattern: ${cluster.length}× ${first.category} · ~${formatCurrency(avg, currency)} (${hint}).`,
+      text: `Recurring pattern: ${cluster.length}× ${getCategoryLabel(first.category)} · ~${formatCurrency(avg, currency)} (${hint}).`,
     })
   }
 

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
+import { getCategoryLabel, getCategoryStyleClass } from '@/lib/category-display'
 import {
   isOtherLikeCategoryLabel,
   suggestCategoryFromDescription,
@@ -214,7 +215,9 @@ export function TransactionEditModal({
             {suggestedCategory ? (
               <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
                 Suggested from description:{' '}
-                <span className="font-medium text-zinc-600 dark:text-zinc-300">{suggestedCategory}</span>
+                <span className={`font-medium ${getCategoryStyleClass(suggestedCategory)}`}>
+                  {getCategoryLabel(suggestedCategory)}
+                </span>
               </p>
             ) : null}
           </div>

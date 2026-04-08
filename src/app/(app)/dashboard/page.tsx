@@ -23,6 +23,7 @@ import {
   isOtherLikeCategoryLabel,
   suggestCategoryFromDescription,
 } from '@/lib/category-suggestion'
+import { getCategoryLabel, getCategoryStyleClass } from '@/lib/category-display'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
@@ -105,15 +106,10 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
   const showSelectedChrome = isSelected || holdFilledIndicator
   const isCredit = transactionEntryType(tx) === 'credit'
   const descTrim = tx.description?.trim() ?? ''
-  const titleLine = descTrim || tx.category
+  const categoryLabel = getCategoryLabel(tx.category)
+  const categoryColorClass = getCategoryStyleClass(tx.category)
+  const titleLine = descTrim || categoryLabel
   const dateStr = new Date(tx.created_at).toLocaleString()
-  const metaLine = [
-    tx.category,
-    dateStr,
-    isRecurring ? 'Recurring' : null,
-  ]
-    .filter(Boolean)
-    .join(' · ')
 
   return (
     <li className="list-none">
@@ -127,7 +123,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
         <button
           type="button"
           aria-pressed={isSelected}
-          aria-label={`${isSelected ? 'Deselect' : 'Select'} ${tx.category}`}
+          aria-label={`${isSelected ? 'Deselect' : 'Select'} ${categoryLabel}`}
           onClick={() => onToggle(tx.id)}
           className={`relative flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-colors duration-150 focus-visible:ring-2 focus-visible:ring-indigo-500/40 ${
             showSelectedChrome
@@ -163,10 +159,19 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
         </button>
 
         <div className="flex min-w-0 flex-1 flex-col gap-1 pr-2 leading-relaxed">
-          <p className="truncate text-base font-semibold leading-snug text-zinc-900 dark:text-zinc-50">
+          <p
+            className={`truncate text-base font-semibold leading-snug ${
+              descTrim ? 'text-zinc-900 dark:text-zinc-50' : categoryColorClass
+            }`}
+          >
             {titleLine}
           </p>
-          <p className="truncate text-xs text-muted-foreground">{metaLine}</p>
+          <p className="truncate text-xs text-muted-foreground">
+            <span className={categoryColorClass}>{categoryLabel}</span>
+            {' · '}
+            {dateStr}
+            {isRecurring ? ' · Recurring' : ''}
+          </p>
         </div>
 
         <div className="flex min-w-[120px] shrink-0 items-center justify-end gap-2">
@@ -189,7 +194,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
               type="button"
               onClick={() => onEdit(tx.id)}
               className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
-              aria-label={`Edit transaction ${tx.category}`}
+              aria-label={`Edit transaction ${categoryLabel}`}
             >
               <Pencil className="h-4 w-4" aria-hidden />
             </button>
@@ -198,7 +203,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
               onClick={() => onDelete(tx.id)}
               disabled={deleteSubmitting && pendingDeleteId === tx.id}
               className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
-              aria-label={`Delete transaction ${tx.category}`}
+              aria-label={`Delete transaction ${categoryLabel}`}
             >
               <Trash2 className="h-4 w-4" aria-hidden />
             </button>
@@ -635,7 +640,14 @@ export default function DashboardPage() {
           <SummaryCard
             title="Top spending category · this month"
             value={
-              analytics.topCategory ? analytics.topCategory.category : '—'
+              analytics.topCategory
+                ? getCategoryLabel(analytics.topCategory.category)
+                : '—'
+            }
+            valueClassName={
+              analytics.topCategory
+                ? getCategoryStyleClass(analytics.topCategory.category)
+                : undefined
             }
             hint={
               analytics.topCategory
@@ -722,6 +734,7 @@ export default function DashboardPage() {
                   : analytics.incomePieByCategory
               }
               currency={currency}
+              formatSegmentLabel={getCategoryLabel}
               emptyHeading={chartMode === 'income' ? 'No income this month' : undefined}
               emptyDescription={
                 chartMode === 'income'
@@ -862,8 +875,10 @@ export default function DashboardPage() {
                 {suggestedCategory ? (
                   <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
                     Suggested:{' '}
-                    <span className="font-medium text-zinc-600 dark:text-zinc-300">
-                      {suggestedCategory}
+                    <span
+                      className={`font-medium ${getCategoryStyleClass(suggestedCategory)}`}
+                    >
+                      {getCategoryLabel(suggestedCategory)}
                     </span>
                     {category.trim() === suggestedCategory ? (
                       <span className="text-zinc-400 dark:text-zinc-500"> · applied</span>
@@ -943,7 +958,7 @@ export default function DashboardPage() {
                     <option value="">All categories</option>
                     {transactionCategories.map((c) => (
                       <option key={c} value={c}>
-                        {c}
+                        {getCategoryLabel(c)}
                       </option>
                     ))}
                   </select>

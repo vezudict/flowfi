@@ -1,3 +1,4 @@
+import { getCategoryLabel } from '@/lib/category-display'
 import { categoryForAnalytics } from '@/lib/category-suggestion'
 import { DEFAULT_CURRENCY, type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
@@ -141,7 +142,7 @@ function topCategoryInsight(
   }
   return {
     id: 'top-category',
-    text: `Your highest expense category is ${top.category}, with about ${fmt(top.amount)} so far this month.`,
+    text: `Your highest expense category is ${getCategoryLabel(top.category)}, with about ${fmt(top.amount)} so far this month.`,
   }
 }
 
@@ -158,7 +159,7 @@ function topCategoryMomInsight(
   if (prev <= 0) {
     return {
       id: 'category-mom',
-      text: `${top.category} is a standout this month (${fmt(curr)}); you had little or no ${top.category} spending last month.`,
+      text: `${getCategoryLabel(top.category)} is a standout this month (${fmt(curr)}); you had little or no ${getCategoryLabel(top.category)} spending last month.`,
     }
   }
   const change = ((curr - prev) / prev) * 100
@@ -166,18 +167,18 @@ function topCategoryMomInsight(
   if (rounded === 0) {
     return {
       id: 'category-mom',
-      text: `Spending on ${top.category} is about the same as last month.`,
+      text: `Spending on ${getCategoryLabel(top.category)} is about the same as last month.`,
     }
   }
   if (rounded > 0) {
     return {
       id: 'category-mom',
-      text: `You spent ${rounded}% more on ${top.category} this month compared to last month.`,
+      text: `You spent ${rounded}% more on ${getCategoryLabel(top.category)} this month compared to last month.`,
     }
   }
   return {
     id: 'category-mom',
-    text: `You spent ${Math.abs(rounded)}% less on ${top.category} this month compared to last month.`,
+    text: `You spent ${Math.abs(rounded)}% less on ${getCategoryLabel(top.category)} this month compared to last month.`,
   }
 }
 
@@ -242,7 +243,7 @@ function categorySpikeInsight(
     best.ratio >= 10 ? String(Math.round(best.ratio)) : best.ratio.toFixed(1)
   return {
     id: 'spike-category',
-    text: `Spending on ${best.cat} jumped sharply versus last month—about ${times}× last month (${fmt(best.curr)} vs ${fmt(best.prev)}).`,
+    text: `Spending on ${getCategoryLabel(best.cat)} jumped sharply versus last month—about ${times}× last month (${fmt(best.curr)} vs ${fmt(best.prev)}).`,
   }
 }
 
@@ -391,7 +392,7 @@ export function buildIncomeInsights(
   if (top && top.amount > 0) {
     insights.push({
       id: 'income-top-source',
-      text: `Your largest income category is ${top.category} (~${fmt(top.amount)} this month).`,
+      text: `Your largest income category is ${getCategoryLabel(top.category)} (~${fmt(top.amount)} this month).`,
     })
   }
 

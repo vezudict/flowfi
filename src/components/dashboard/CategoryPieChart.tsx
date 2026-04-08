@@ -28,6 +28,8 @@ type CategoryPieChartProps = {
   currency: SupportedCurrencyCode
   emptyHeading?: string
   emptyDescription?: string
+  /** Map raw segment `name` (analytics key) to display text — legend & tooltip. */
+  formatSegmentLabel?: (name: string) => string
 }
 
 const cardShell =
@@ -39,6 +41,7 @@ export function CategoryPieChart({
   currency,
   emptyHeading = 'No spending this month',
   emptyDescription = 'Category breakdown appears once you log expenses for the current month.',
+  formatSegmentLabel = (name) => name,
 }: CategoryPieChartProps) {
   if (data.length === 0) {
     return (
@@ -105,6 +108,7 @@ export function CategoryPieChart({
                     currency,
                   )
                 }
+                labelFormatter={(label) => formatSegmentLabel(String(label))}
                 contentStyle={{
                   borderRadius: '0.5rem',
                   border: '1px solid rgb(228 228 231)',
@@ -114,7 +118,9 @@ export function CategoryPieChart({
               <Legend
                 wrapperStyle={{ fontSize: '0.75rem', paddingTop: '0.5rem' }}
                 formatter={(value) => (
-                  <span className="text-zinc-600 dark:text-zinc-400">{value}</span>
+                  <span className="text-zinc-600 dark:text-zinc-400">
+                    {formatSegmentLabel(String(value))}
+                  </span>
                 )}
               />
             </PieChart>
