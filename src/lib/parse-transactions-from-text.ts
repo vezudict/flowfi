@@ -79,6 +79,13 @@ function normalizeDateForOutput(raw: string): string {
   return `${m[3]}-${month}-${day}`
 }
 
+const INCOME_KEYWORDS = /\b(salary|freelance|income)\b/i
+
+/** Description-keyword type detection — takes priority over structural inference. */
+function inferTypeFromDescription(description: string): 'credit' | null {
+  return INCOME_KEYWORDS.test(description) ? 'credit' : null
+}
+
 const REDUNDANT_WORDS = /\b(upi|payment|credit|debit|ride|transfer)\b\s*/gi
 
 /** Strip UPI prefix and generic banking words; collapse whitespace. */
@@ -167,7 +174,8 @@ export function parseTransactionsFromText(text: string): Transaction[] {
     const allNums = findAllNumericTokens(afterDate)
     if (allNums.length === 0) continue
 
-    const type = inferType(afterDate, allNums[0].index)
+    // Structural type is needed to pick the correct amount column
+    const structuralType = inferType(afterDate, allNums[0].index)
     let amount: number | null = null
 
     if (allNums.length === 1) {
@@ -175,7 +183,7 @@ export function parseTransactionsFromText(text: string): Transaction[] {
       amount = Math.abs(allNums[0].signed)
     } else {
       const candidates = allNums.slice(0, -1)
-      amount = pickTransactionAmount(candidates, type)
+      amount = pickTransactionAmount(candidates, structuralType)
     }
 
     if (amount === null || amount <= 0) continue
@@ -187,6 +195,9 @@ export function parseTransactionsFromText(text: string): Transaction[] {
 
     const description = normalizeDescription(rawDesc)
     const category = detectCategory(rawDesc) // run on pre-normalized text for better keyword coverage
+
+    // Description keywords take priority over structural inference
+    const type = inferTypeFromDescription(description) ?? structuralType
 
     out.push({ date, description, amount, type, category })
   }

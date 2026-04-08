@@ -10,7 +10,8 @@ export type ValidatedTransactionInsert = {
   amount: number
   category: string
   description: string | null
-  transaction_type: 'debit' | 'credit'
+  /** null when the caller omitted transactionType — route must resolve before insert */
+  transaction_type: 'debit' | 'credit' | null
 }
 
 function parseEntryType(raw: unknown): 'debit' | 'credit' | null {
@@ -64,21 +65,22 @@ export function parseAndValidateTransactionBody(
 
   const oRec = o as Record<string, unknown>
   const ttRaw = oRec.transactionType ?? oRec.transaction_type
-  if (ttRaw === undefined || ttRaw === null) {
-    return { ok: false, message: 'transactionType is required (debit or credit).' }
-  }
-  const transaction_type = parseEntryType(ttRaw)
-  if (transaction_type === null) {
-    return { ok: false, message: 'transactionType must be debit or credit.' }
-  }
-
-  if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
-    return {
-      ok: false,
-      message:
-        'Expenses cannot use income categories (Income, Salary, Freelance). Use an expense category for debits, or Credit for deposits.',
+  let transaction_type: 'debit' | 'credit' | null = null
+  if (ttRaw !== undefined && ttRaw !== null) {
+    const parsed = parseEntryType(ttRaw)
+    if (parsed === null) {
+      return { ok: false, message: 'transactionType must be debit or credit.' }
+    }
+    transaction_type = parsed
+    if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
+      return {
+        ok: false,
+        message:
+          'Expenses cannot use income categories (Income, Salary, Freelance). Use an expense category for debits, or Credit for deposits.',
+      }
     }
   }
+  // transaction_type may be null here — route handler must resolve it before inserting
 
   return { ok: true, data: { amount, category, description, transaction_type } }
 }

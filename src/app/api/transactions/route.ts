@@ -51,15 +51,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: parsed.message }, { status: 400 })
     }
 
+    // Resolve transaction_type — must never be null before insert
+    let transaction_type = parsed.data.transaction_type
+    if (!transaction_type) {
+      const desc = (parsed.data.description ?? '').toLowerCase()
+      transaction_type = /\b(salary|freelance|income)\b/.test(desc) ? 'credit' : 'debit'
+    }
+    transaction_type = transaction_type.toLowerCase() as 'debit' | 'credit'
+
+    const insertPayload = {
+      user_id: user.id,
+      amount: parsed.data.amount,
+      category: parsed.data.category,
+      description: parsed.data.description,
+      transaction_type,
+    }
     const { data, error } = await supabase
       .from('transactions')
-      .insert({
-        user_id: user.id,
-        amount: parsed.data.amount,
-        category: parsed.data.category,
-        description: parsed.data.description,
-        transaction_type: parsed.data.transaction_type,
-      })
+      .insert(insertPayload)
       .select('id, user_id, amount, category, description, created_at, transaction_type')
       .single()
 

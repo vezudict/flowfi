@@ -54,14 +54,23 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       return NextResponse.json({ error: parsed.message }, { status: 400 })
     }
 
+    // Resolve transaction_type — must never be null before update
+    let transaction_type = parsed.data.transaction_type
+    if (!transaction_type) {
+      const desc = (parsed.data.description ?? '').toLowerCase()
+      transaction_type = /\b(salary|freelance|income)\b/.test(desc) ? 'credit' : 'debit'
+    }
+    transaction_type = transaction_type.toLowerCase() as 'debit' | 'credit'
+
+    const updatePayload = {
+      amount: parsed.data.amount,
+      category: parsed.data.category,
+      description: parsed.data.description,
+      transaction_type,
+    }
     const { data, error } = await supabase
       .from('transactions')
-      .update({
-        amount: parsed.data.amount,
-        category: parsed.data.category,
-        description: parsed.data.description,
-        transaction_type: parsed.data.transaction_type,
-      })
+      .update(updatePayload)
       .eq('id', id)
       .eq('user_id', user.id)
       .select('id, user_id, amount, category, description, created_at, transaction_type')
