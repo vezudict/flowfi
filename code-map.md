@@ -36,7 +36,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/supabase-server.ts` | Service role / user from token for Route Handlers | All `api/*` mutations |
 | `src/lib/supabase.ts` | Browser Supabase client | Auth context, client data |
 | `src/lib/ensure-profile.ts` | Ensure profile row exists | Auth flows |
-| `src/lib/profile-budget.ts` | Fetch monthly budget | Dashboard |
+| `src/lib/profile-budget.ts` | **`fetchProfilePreferences`**: single `profiles` read **`select('monthly_budget, preferred_currency').eq('id', userId).maybeSingle()`** (deduped in-flight); **`PROFILE FETCH ERROR`** on failure; **`fetchProfileBudget` / `fetchPreferredCurrency`** wrap same call | Dashboard (`loadDashboard` → budget), **`CurrencyProvider`** → preferred currency |
 | `src/lib/rate-limit.ts` | In-memory rate limits | API routes |
 | `src/lib/request-ip.ts` | Client IP for rate limiting | API routes |
 | `src/lib/api-public-error.ts` | Stable error strings for clients | API responses |
@@ -56,7 +56,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/app/signup/page.tsx` | Sign-up | Auth |
 | `src/app/guide/page.tsx` | In-app guide | Learn |
 | `src/app/(app)/layout.tsx` | Authenticated shell (`AppShell`) | Dashboard, tools, settings |
-| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, **`getCategoryLabel` + `getCategoryStyleClass`** on category meta/title fallback, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount. **`CategoryPieChart`** passes **`formatSegmentLabel={getCategoryLabel}`**. **`SummaryCard`** top category uses display label + accent class. **AI insights:** `useEffect` on **`transactions`** (after **`!authLoading`** and **`session.access_token`**) → **`authedFetch` POST `/api/ai-insights`** with `{ analytics: computeAnalytics(transactions), currency }` → route cache / OpenAI (see API row) | Main product surface |
+| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, **`getCategoryLabel` + `getCategoryStyleClass`** on category meta/title fallback, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount. **`CategoryPieChart`** passes **`formatSegmentLabel={getCategoryLabel}`**. **`SummaryCard`** top category uses display label + accent class. **AI insights:** `useEffect` on **`transactions`** (after **`!authLoading`** and **`session.access_token`**) → **`authedFetch` POST `/api/ai-insights`** with `{ analytics: computeAnalytics(transactions), currency }` → route cache / OpenAI (see API row). **`loadDashboard`** → **`fetchProfileBudget`** → **`fetchProfilePreferences`** (`profiles`: `monthly_budget`, `preferred_currency`); **`currency`** UI prop from **`CurrencyProvider`** (same prefs read for `preferred_currency`) | Main product surface |
 | `src/app/(app)/settings/page.tsx` | Appearance, currency | User prefs |
 | `src/app/(app)/tools/page.tsx` | Tools index grid | Navigation |
 | `src/app/(app)/tools/credit-score/page.tsx` | Credit score tool page | Tool shell + client |
@@ -187,6 +187,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 
 - **Logic:** `transaction-analytics.ts`, `spending-insights.ts`, `recurring-transactions.ts`, `financial-health-score.ts`, `profile-budget.ts`, `ai-insights.ts` (server)
 - **UI:** Dashboard page + dashboard components (cards, charts, insights)
+- **Profiles & currency:** `loadDashboard` → **`fetchProfileBudget`**; **`CurrencyProvider`** → **`fetchPreferredCurrency`** — both use **`fetchProfilePreferences`** (`profiles`: `monthly_budget`, `preferred_currency`, keyed by `id`). **`PROFILE FETCH ERROR`** logged on Supabase errors.
 - **AI insights:** `dashboard/page.tsx` **`useEffect`** (when `transactions` non-empty, auth ready, session token present) → **`POST /api/ai-insights`** → **`ai_insights_cache`** → **`generateAIInsights`** (OpenAI) on cache miss
 
 ### Tools (tax, rent vs buy, credit, decision)
@@ -219,7 +220,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 | Path | Does |
 |------|------|
 | `src/contexts/auth-context.tsx` | Supabase session, user |
-| `src/contexts/currency-context.tsx` | Preferred currency for formatting |
+| `src/contexts/currency-context.tsx` | Preferred currency for formatting; after auth, **`fetchPreferredCurrency`** → `profiles` (via `profile-budget`); logs **`PROFILE FETCH ERROR`** on failure; localStorage fallback |
 
 ---
 

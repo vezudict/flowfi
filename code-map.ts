@@ -17,6 +17,7 @@ export const codeMap = {
     transactionFilters: 'src/lib/transaction-filters.ts',
     transactions: 'src/lib/transactions.ts',
     sensitiveInputs: 'src/lib/validation/sensitive-inputs.ts',
+    profileBudgetLib: 'src/lib/profile-budget.ts',
     authedApi: 'src/lib/authed-api.ts',
     supabaseServer: 'src/lib/supabase-server.ts',
     supabaseClient: 'src/lib/supabase.ts',

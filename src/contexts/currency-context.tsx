@@ -54,6 +54,9 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
     ;(async () => {
       const { data, error } = await fetchPreferredCurrency(user.id)
       if (cancelled) return
+      if (error) {
+        console.error('PROFILE FETCH ERROR', error)
+      }
       if (!error && data?.preferred_currency && isSupportedCurrency(data.preferred_currency)) {
         setCurrencyState(data.preferred_currency)
         try {
