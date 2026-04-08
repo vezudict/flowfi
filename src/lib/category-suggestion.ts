@@ -45,6 +45,31 @@ export function categoryForAnalytics(raw: string): string {
   return t
 }
 
+/**
+ * Money-in labels for analytics (not spending). Uses normalized category text.
+ * FlowFi does not persist debit/credit on transactions; imports label credits as `income`.
+ */
+const INCOME_CATEGORY_LABELS = new Set(
+  [
+    'income',
+    'salary',
+    'payroll',
+    'wages',
+    'paycheck',
+    'bonus',
+    'interest',
+    'dividend',
+    'refund',
+    'reimbursement',
+  ].map((s) => s.toLowerCase()),
+)
+
+export function isIncomeCategoryLabel(raw: string): boolean {
+  const n = categoryForAnalytics(raw).trim().toLowerCase()
+  if (!n) return false
+  return INCOME_CATEGORY_LABELS.has(n)
+}
+
 /** Whether a CSV-provided category cell is safe to use as-is. */
 export function isPlausibleImportedCategoryLabel(raw: string): boolean {
   const t = raw.trim().replace(/\s+/g, ' ')

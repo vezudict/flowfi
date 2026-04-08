@@ -142,7 +142,6 @@ export function parseTransactionsFromText(text: string): Transaction[] {
   const matches = [...normalized.matchAll(DATE_REGEX)]
 
   if (matches.length === 0) {
-    console.log('[parseTransactionsFromText]', [])
     return []
   }
 
@@ -170,37 +169,13 @@ export function parseTransactionsFromText(text: string): Transaction[] {
 
     const type = inferType(afterDate, allNums[0].index)
     let amount: number | null = null
-    let balanceIgnored: string | null = null
-    let candidateRaws: string[]
 
     if (allNums.length === 1) {
       // No running balance on this fragment — sole token is the transaction amount.
-      candidateRaws = [allNums[0].raw]
       amount = Math.abs(allNums[0].signed)
-      console.log('[parseTransactionsFromText]', {
-        date,
-        extractedNumbers: allNums.map((t) => t.raw),
-        balanceIgnored: null,
-        candidateRaws,
-        chosenAmount: amount,
-        type,
-        note: 'single token (no balance column)',
-      })
     } else {
-      const balance = allNums[allNums.length - 1]
-      balanceIgnored = balance.raw
       const candidates = allNums.slice(0, -1)
-      candidateRaws = candidates.map((t) => t.raw)
       amount = pickTransactionAmount(candidates, type)
-
-      console.log('[parseTransactionsFromText]', {
-        date,
-        extractedNumbers: allNums.map((t) => t.raw),
-        balanceIgnored,
-        candidateRaws,
-        chosenAmount: amount,
-        type,
-      })
     }
 
     if (amount === null || amount <= 0) continue
@@ -216,8 +191,20 @@ export function parseTransactionsFromText(text: string): Transaction[] {
     out.push({ date, description, amount, type, category })
   }
 
-  console.log('[parseTransactionsFromText] result', out)
   return out
+}
+
+/**
+ * Heuristic: many date-like anchors in the PDF text but comparatively few parsed rows
+ * often means the statement layout wasn't fully understood.
+ */
+export function pdfParseLooksIncomplete(extractedText: string, parsedRowCount: number): boolean {
+  if (parsedRowCount === 0) return false
+  const normalized = extractedText.replace(/\r\n/g, '\n')
+  const dateCount = [...normalized.matchAll(DATE_REGEX)].length
+  if (dateCount < 6) return false
+  const gap = dateCount - parsedRowCount
+  return gap >= 4
 }
 
 /**

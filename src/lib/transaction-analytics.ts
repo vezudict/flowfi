@@ -1,4 +1,7 @@
-import { categoryForAnalytics } from '@/lib/category-suggestion'
+import {
+  categoryForAnalytics,
+  isIncomeCategoryLabel,
+} from '@/lib/category-suggestion'
 import type { Transaction } from '@/lib/transactions'
 
 export function normalizeAmount(raw: unknown): number {
@@ -38,6 +41,11 @@ function isInCurrentMonth(iso: string, ref: Date) {
   )
 }
 
+/** Spending / outflows only (excludes income-category transactions). */
+export function isExpenseTransaction(tx: Transaction): boolean {
+  return !isIncomeCategoryLabel(tx.category)
+}
+
 export function computeAnalytics(
   transactions: Transaction[],
   referenceDate: Date = new Date(),
@@ -53,13 +61,15 @@ export function computeAnalytics(
     isInCurrentMonth(tx.created_at, referenceDate),
   )
 
-  const currentMonthTotal = inMonth.reduce(
+  const inMonthExpenses = inMonth.filter(isExpenseTransaction)
+
+  const currentMonthTotal = inMonthExpenses.reduce(
     (sum, tx) => sum + Math.abs(normalizeAmount(tx.amount)),
     0,
   )
 
   const byCategory = new Map<string, number>()
-  for (const tx of inMonth) {
+  for (const tx of inMonthExpenses) {
     const cat = categoryForAnalytics(tx.category)
     const amt = Math.abs(normalizeAmount(tx.amount))
     byCategory.set(cat, (byCategory.get(cat) ?? 0) + amt)
@@ -78,7 +88,7 @@ export function computeAnalytics(
     .sort((a, b) => b.value - a.value)
 
   const dayTotals = new Map<string, number>()
-  for (const tx of inMonth) {
+  for (const tx of inMonthExpenses) {
     const day = localDateKey(new Date(tx.created_at))
     dayTotals.set(
       day,

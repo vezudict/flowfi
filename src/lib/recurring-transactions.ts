@@ -1,3 +1,4 @@
+import { isIncomeCategoryLabel } from '@/lib/category-suggestion'
 import type { SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
 import { normalizeAmount } from '@/lib/transaction-analytics'
@@ -78,7 +79,8 @@ function buildRecurringClusters(transactions: Transaction[]): Transaction[][] {
 }
 
 export function getRecurringTransactionIds(transactions: Transaction[]): Set<string> {
-  const clusters = buildRecurringClusters(transactions)
+  const expenses = transactions.filter((t) => !isIncomeCategoryLabel(t.category))
+  const clusters = buildRecurringClusters(expenses)
   const ids = new Set<string>()
   for (const c of clusters) {
     for (const tx of c) ids.add(tx.id)
@@ -90,7 +92,8 @@ export function buildRecurringInsights(
   transactions: Transaction[],
   currency: SupportedCurrencyCode,
 ): SpendingInsight[] {
-  const clusters = buildRecurringClusters(transactions)
+  const expenses = transactions.filter((t) => !isIncomeCategoryLabel(t.category))
+  const clusters = buildRecurringClusters(expenses)
   if (clusters.length === 0) return []
 
   const sortedClusters = [...clusters].sort((a, b) => b.length - a.length)

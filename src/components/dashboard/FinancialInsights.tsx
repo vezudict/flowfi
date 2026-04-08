@@ -15,7 +15,8 @@ export function FinancialInsights({ insights }: FinancialInsightsProps) {
           Financial insights
         </h2>
         <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Pulled from your transactions: top category, month-over-month change, and unusual spikes.
+          Savings estimate, spending trends (expenses only), income summary, and recurring charges.
+          Income categories are excluded from expense insights.
         </p>
         {insights.length === 0 ? (
           <div className="mx-auto mt-6 flex max-w-sm flex-col items-center justify-center px-4 py-8 text-center">
@@ -26,8 +27,8 @@ export function FinancialInsights({ insights }: FinancialInsightsProps) {
               No insights yet
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500/90 dark:text-zinc-400/85">
-              Add a few transactions to see spending trends, category comparisons, day-level spikes, and
-              daily averages.
+              Add expenses and tag deposits as Income or Salary to see spending vs income, savings, and
+              trends.
             </p>
             <Link
               href="#add-transaction"

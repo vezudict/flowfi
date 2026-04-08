@@ -1,17 +1,21 @@
 'use client'
 
-import { Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAuth } from '@/contexts/auth-context'
+import { useCurrency } from '@/contexts/currency-context'
+import { PUBLIC_ERROR_GENERIC } from '@/lib/api-public-error'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { resolvePdfImportCategory } from '@/lib/category-suggestion'
+import { formatCurrency } from '@/lib/format-currency'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import {
   formatTodayPdfStatementDate,
   parsePdfStatementDateToIso,
   parseTransactionsFromText,
+  pdfParseLooksIncomplete,
 } from '@/lib/parse-transactions-from-text'
 
 const MAX_BYTES = 5 * 1024 * 1024
@@ -27,6 +31,8 @@ type PdfPreviewRow = {
   amount: string
   type: 'credit' | 'debit'
 }
+
+type ProcessingStep = 'idle' | 'upload' | 'parse'
 
 function newRow(partial?: Partial<Pick<PdfPreviewRow, 'date' | 'description' | 'amount' | 'type'>>): PdfPreviewRow {
   const id =
@@ -52,26 +58,82 @@ function rowErrors(row: PdfPreviewRow): string[] {
   return err
 }
 
+function friendlyPdfError(message: string): string {
+  const m = message.trim()
+  if (!m) return PUBLIC_ERROR_GENERIC
+  const lower = m.toLowerCase()
+  if (lower.includes('must be signed') || lower.includes('signed in')) return m
+  if (lower.includes('no file')) {
+    return 'No file uploaded. Choose a PDF and try again.'
+  }
+  if (lower.includes("couldn't read") || lower.includes('could not read')) return m
+  if (lower.includes('parsing failed')) {
+    return "We couldn't read that PDF. Try another file or export the statement again from your bank."
+  }
+  if (lower.includes('invalid file') || lower.includes('application/pdf')) {
+    return 'Please choose a valid PDF (max 5 MB).'
+  }
+  if (lower.includes('too many') || lower.includes('429')) {
+    return 'Too many requests. Wait a moment and try again.'
+  }
+  if (m.length > 120 || /\[object \w+\]/.test(m) || /\bat\b/i.test(m) && m.includes('Error')) {
+    return PUBLIC_ERROR_GENERIC
+  }
+  return m
+}
+
+function friendlyImportError(message: string): string {
+  const m = message.trim()
+  if (!m) return PUBLIC_ERROR_GENERIC
+  if (m.length > 160 || /\[object \w+\]/.test(m)) return PUBLIC_ERROR_GENERIC
+  return m
+}
+
 export function PdfBankStatementUpload() {
   const { user } = useAuth()
+  const { currency } = useCurrency()
   const [extractedText, setExtractedText] = useState<string | null>(null)
   const [previewRows, setPreviewRows] = useState<PdfPreviewRow[]>([])
   const [fileName, setFileName] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
+  const [extractComplete, setExtractComplete] = useState(false)
   const [busy, setBusy] = useState(false)
+  const [processingStep, setProcessingStep] = useState<ProcessingStep>('idle')
+  const [partialParseWarning, setPartialParseWarning] = useState(false)
+  /** Row count from the last PDF parse (not manual edits). */
+  const [lastPdfParseRowCount, setLastPdfParseRowCount] = useState<number | null>(null)
   const [importBusy, setImportBusy] = useState(false)
   const [importError, setImportError] = useState<string | null>(null)
   const router = useRouter()
 
   const reset = useCallback(() => {
     setError(null)
-    setSuccess(false)
+    setExtractComplete(false)
     setExtractedText(null)
     setFileName(null)
     setPreviewRows([])
     setImportError(null)
+    setProcessingStep('idle')
+    setPartialParseWarning(false)
+    setLastPdfParseRowCount(null)
   }, [])
+
+  const importStats = useMemo(() => {
+    const valid = previewRows.filter((r) => rowErrors(r).length === 0)
+    let debitTotal = 0
+    let creditTotal = 0
+    for (const r of valid) {
+      const amt = Number.parseFloat(r.amount.replace(/,/g, ''))
+      if (!Number.isFinite(amt)) continue
+      if (r.type === 'debit') debitTotal += amt
+      else creditTotal += amt
+    }
+    return {
+      validCount: valid.length,
+      debitTotal,
+      creditTotal,
+    }
+  }, [previewRows])
 
   function updateRow(id: string, patch: Partial<Pick<PdfPreviewRow, 'date' | 'description' | 'amount' | 'type'>>) {
     setImportError(null)
@@ -96,18 +158,19 @@ export function PdfBankStatementUpload() {
     if (!file) return
 
     if (file.size > MAX_BYTES) {
-      setError('File is too large. Maximum size is 5 MB.')
+      setError('That file is too large. Maximum size is 5 MB.')
       return
     }
 
     const mimeOk = file.type === PDF_MIME
     const extOk = file.name.toLowerCase().endsWith('.pdf')
     if (!mimeOk && !(file.type === '' && extOk)) {
-      setError('Invalid file. Please choose a PDF (application/pdf).')
+      setError('Please choose a PDF file.')
       return
     }
 
     setBusy(true)
+    setProcessingStep('upload')
     setFileName(file.name)
 
     const formData = new FormData()
@@ -119,28 +182,36 @@ export function PdfBankStatementUpload() {
     })
 
     const parsed = await readAuthedJson<{ text: string }>(res)
-    setBusy(false)
 
     if (!parsed.ok) {
+      setBusy(false)
+      setProcessingStep('idle')
       setFileName(null)
-      setError(parsed.message)
+      setError(friendlyPdfError(parsed.message))
       return
     }
 
-    setExtractedText(parsed.data.text)
-    setSuccess(true)
+    setProcessingStep('parse')
+    await new Promise((r) => setTimeout(r, 40))
 
-    const parsedTx = parseTransactionsFromText(parsed.data.text)
-    setPreviewRows(
-      parsedTx.map((row) =>
-        newRow({
-          date: row.date,
-          description: row.description,
-          amount: String(row.amount),
-          type: row.type,
-        }),
-      ),
+    const text = parsed.data.text
+    const parsedTx = parseTransactionsFromText(text)
+    const rows = parsedTx.map((row) =>
+      newRow({
+        date: row.date,
+        description: row.description,
+        amount: String(row.amount),
+        type: row.type,
+      }),
     )
+
+    setExtractedText(text)
+    setPreviewRows(rows)
+    setLastPdfParseRowCount(parsedTx.length)
+    setPartialParseWarning(pdfParseLooksIncomplete(text, rows.length))
+    setExtractComplete(true)
+    setBusy(false)
+    setProcessingStep('idle')
   }
 
   async function onConfirmImport() {
@@ -149,7 +220,7 @@ export function PdfBankStatementUpload() {
 
     const validRows = previewRows.filter((r) => rowErrors(r).length === 0)
     if (validRows.length === 0) {
-      setImportError('No valid rows to import. Fix or remove invalid rows.')
+      setImportError('Fix the highlighted rows or add valid transactions before importing.')
       return
     }
 
@@ -178,25 +249,45 @@ export function PdfBankStatementUpload() {
     setImportBusy(false)
 
     if (!importResult.ok) {
-      setImportError(importResult.message)
+      setImportError(friendlyImportError(importResult.message))
       return
     }
 
     const n = importResult.data.count
     const skipped = previewRows.length - validRows.length
-    const skipMsg =
-      skipped > 0 ? ` (${skipped} row${skipped === 1 ? '' : 's'} skipped as invalid)` : ''
-    toast.success(`Imported ${n} transaction${n === 1 ? '' : 's'}${skipMsg}.`)
+
+    toast.success(`Imported ${n} transaction${n === 1 ? '' : 's'}`, {
+      description:
+        skipped > 0
+          ? `${skipped} row${skipped === 1 ? '' : 's'} skipped because of validation issues.`
+          : undefined,
+      duration: 9000,
+      action: {
+        label: 'View in dashboard',
+        onClick: () => router.push('/dashboard'),
+      },
+    })
 
     setPreviewRows([])
     setExtractedText(null)
     setFileName(null)
-    setSuccess(false)
+    setExtractComplete(false)
+    setPartialParseWarning(false)
+    setLastPdfParseRowCount(null)
     router.refresh()
   }
 
   const hasNoValidRows =
     previewRows.length > 0 && previewRows.every((r) => rowErrors(r).length > 0)
+
+  const showPreviewPanel = extractedText !== null
+  const noTransactionsFromPdf =
+    extractComplete && previewRows.length === 0 && lastPdfParseRowCount === 0
+  const tableWasCleared =
+    extractComplete &&
+    previewRows.length === 0 &&
+    lastPdfParseRowCount !== null &&
+    lastPdfParseRowCount > 0
 
   return (
     <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
@@ -206,24 +297,42 @@ export function PdfBankStatementUpload() {
           Bank statement (PDF)
         </h2>
         <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
-          Upload PDF → text extraction → parse rows → review in the table → confirm to save to your
-          account. Max 5 MB.
+          Upload a statement—we extract the text, detect transactions, and let you review before
+          saving. Max 5 MB.
         </p>
 
-        <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-6 py-12 transition-all duration-150 ease-in-out hover:border-violet-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-violet-500/40">
-          <span className="inline-flex items-center gap-2 text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            {busy ? (
-              <>
-                <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                Extracting text…
-              </>
-            ) : (
-              'Choose PDF file'
-            )}
-          </span>
-          <span className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            application/pdf · max 5 MB
-          </span>
+        <label
+          className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] dark:border-zinc-700 dark:bg-zinc-900/40 ${
+            busy
+              ? 'border-violet-300/70 bg-violet-50/60 dark:border-violet-500/35 dark:bg-violet-950/25'
+              : 'border-zinc-300 bg-zinc-50/80 hover:border-violet-400/50 hover:bg-zinc-50 dark:hover:border-violet-500/40'
+          }`}
+        >
+          {busy ? (
+            <span className="flex flex-col items-center gap-3 text-center">
+              <Loader2
+                className="h-8 w-8 shrink-0 animate-spin text-violet-600 dark:text-violet-400"
+                aria-hidden
+              />
+              <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                Processing your statement…
+              </span>
+              <span className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400">
+                {processingStep === 'upload'
+                  ? 'Uploading and reading your PDF.'
+                  : 'Finding transactions in the text.'}
+              </span>
+            </span>
+          ) : (
+            <>
+              <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                Choose PDF file
+              </span>
+              <span className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                PDF · max 5 MB
+              </span>
+            </>
+          )}
           <input
             type="file"
             accept="application/pdf,.pdf"
@@ -233,71 +342,132 @@ export function PdfBankStatementUpload() {
           />
         </label>
 
-        {fileName ? (
+        {fileName && !busy ? (
           <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-            Selected:{' '}
+            File:{' '}
             <span className="font-medium text-zinc-700 dark:text-zinc-300">{fileName}</span>
           </p>
         ) : null}
 
         {error ? (
           <p
-            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
             role="alert"
           >
             {error}
           </p>
         ) : null}
 
-        {success ? (
-          <p
-            className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100"
-            role="status"
-          >
-            Text extracted. Review and edit rows below, then import.
-          </p>
-        ) : null}
-
-        {extractedText !== null ? (
+        {showPreviewPanel ? (
           <div className="result-panel mt-6 space-y-4">
-            <div className="flex flex-wrap items-end justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-                  Preview ({previewRows.length})
-                </h3>
-                <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
-                  Edit inline. Categories are auto-detected from description (e.g. Swiggy → food,
-                  Uber → transport, salary → income). Invalid rows are skipped on import.
+            {noTransactionsFromPdf ? (
+              <div className="rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-4 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900/50">
+                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  No transactions detected
                 </p>
-              </div>
-              <div className="flex flex-wrap items-center gap-2">
+                <p className="mx-auto mt-2 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
+                  Try another file or add transactions manually. Some bank PDFs use formats we
+                  don&apos;t recognize yet.
+                </p>
                 <button
                   type="button"
                   onClick={addRow}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-800 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
                 >
-                  <Plus className="h-3.5 w-3.5" aria-hidden />
-                  Add row
-                </button>
-                <button
-                  type="button"
-                  disabled={
-                    !user || importBusy || previewRows.length === 0 || hasNoValidRows
-                  }
-                  onClick={() => void onConfirmImport()}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                >
-                  {importBusy ? (
-                    <>
-                      <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                      Importing…
-                    </>
-                  ) : (
-                    'Confirm & Import'
-                  )}
+                  <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                  Add manually
                 </button>
               </div>
-            </div>
+            ) : null}
+
+            {partialParseWarning && !noTransactionsFromPdf && previewRows.length > 0 ? (
+              <p
+                className="flex gap-2 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-100/95"
+                role="status"
+              >
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                <span>
+                  Some transactions may not have been detected. Review the list carefully before
+                  importing.
+                </span>
+              </p>
+            ) : null}
+
+            {!noTransactionsFromPdf && previewRows.length > 0 ? (
+              <>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+                      Preview
+                    </h3>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      Edit any cell. Categories are inferred from descriptions. Invalid rows are
+                      skipped on import.
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={addRow}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-800 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      Add row
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!user || importBusy || previewRows.length === 0 || hasNoValidRows}
+                      onClick={() => void onConfirmImport()}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    >
+                      {importBusy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                          Importing…
+                        </>
+                      ) : (
+                        'Confirm import'
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Import summary
+                  </p>
+                  <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Transactions</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {importStats.validCount}
+                        {previewRows.length !== importStats.validCount ? (
+                          <span className="font-normal text-zinc-400">
+                            {' '}
+                            / {previewRows.length} rows
+                          </span>
+                        ) : null}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Total debit</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {formatCurrency(importStats.debitTotal, currency)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Total credit</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {formatCurrency(importStats.creditTotal, currency)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+                    Totals include only rows that pass validation.
+                  </p>
+                </div>
+              </>
+            ) : null}
 
             {importError ? (
               <p
@@ -308,125 +478,117 @@ export function PdfBankStatementUpload() {
               </p>
             ) : null}
 
-            {previewRows.length === 0 ? (
+            {tableWasCleared ? (
               <p className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50/80 px-4 py-6 text-center text-xs text-zinc-500 dark:border-zinc-700 dark:bg-zinc-900/40 dark:text-zinc-400">
-                No rows yet. Use <span className="font-medium text-zinc-700 dark:text-zinc-300">Add row</span>{' '}
-                to enter transactions manually.
+                No rows left. Use{' '}
+                <span className="font-medium text-zinc-700 dark:text-zinc-300">Add row</span> to
+                enter transactions, or upload another PDF.
               </p>
             ) : null}
 
-            {previewRows.length > 0 ? (
+            {!noTransactionsFromPdf && previewRows.length > 0 ? (
               <div className="max-h-[min(420px,55vh)] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-              <table className="w-full min-w-[640px] text-left text-sm">
-                <thead className="sticky top-0 z-[1] border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
-                  <tr>
-                    <th className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      Date
-                    </th>
-                    <th className="min-w-[200px] px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      Description
-                    </th>
-                    <th className="w-[120px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      Amount
-                    </th>
-                    <th className="w-[100px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      Type
-                    </th>
-                    <th className="w-14 px-2 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                      <span className="sr-only">Delete</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
-                  {previewRows.map((row, idx) => {
-                    const errs = rowErrors(row)
-                    const invalid = errs.length > 0
-                    return (
-                      <tr
-                        key={row.id}
-                        className={
-                          invalid
-                            ? 'bg-red-50/50 dark:bg-red-950/20'
-                            : 'bg-white dark:bg-zinc-950'
-                        }
-                        title={invalid ? errs.join(' · ') : undefined}
-                      >
-                        <td className="px-3 py-2 align-middle">
-                          <input
-                            className={inputClass}
-                            aria-label={`Date row ${idx + 1}`}
-                            value={row.date}
-                            onChange={(e) => updateRow(row.id, { date: e.target.value })}
-                            placeholder="DD-MMM-YYYY"
-                          />
-                        </td>
-                        <td className="px-3 py-2 align-middle">
-                          <input
-                            className={inputClass}
-                            aria-label={`Description row ${idx + 1}`}
-                            value={row.description}
-                            onChange={(e) =>
-                              updateRow(row.id, { description: e.target.value })
-                            }
-                            placeholder="Description"
-                          />
-                        </td>
-                        <td className="px-3 py-2 align-middle">
-                          <input
-                            className={`${inputClass} tabular-nums`}
-                            aria-label={`Amount row ${idx + 1}`}
-                            inputMode="decimal"
-                            autoComplete="off"
-                            value={row.amount}
-                            onChange={(e) =>
-                              updateRow(row.id, {
-                                amount: sanitizeUnsignedDecimalInput(e.target.value),
-                              })
-                            }
-                            placeholder="0"
-                          />
-                        </td>
-                        <td className="px-3 py-2 align-middle">
-                          <select
-                            className={inputClass}
-                            aria-label={`Type row ${idx + 1}`}
-                            value={row.type}
-                            onChange={(e) =>
-                              updateRow(row.id, {
-                                type: e.target.value as 'credit' | 'debit',
-                              })
-                            }
-                          >
-                            <option value="debit">Debit</option>
-                            <option value="credit">Credit</option>
-                          </select>
-                        </td>
-                        <td className="px-2 py-2 align-middle">
-                          <button
-                            type="button"
-                            onClick={() => deleteRow(row.id)}
-                            className="rounded-md p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
-                            aria-label={`Remove row ${idx + 1}`}
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        </td>
-                      </tr>
-                    )
-                  })}
-                </tbody>
-              </table>
+                <table className="w-full min-w-[640px] text-left text-sm">
+                  <thead className="sticky top-0 z-[1] border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+                    <tr>
+                      <th className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Date
+                      </th>
+                      <th className="min-w-[200px] px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Description
+                      </th>
+                      <th className="w-[120px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Amount
+                      </th>
+                      <th className="w-[100px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        Type
+                      </th>
+                      <th className="w-14 px-2 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                        <span className="sr-only">Delete</span>
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
+                    {previewRows.map((row, idx) => {
+                      const errs = rowErrors(row)
+                      const invalid = errs.length > 0
+                      return (
+                        <tr
+                          key={row.id}
+                          className={
+                            invalid
+                              ? 'bg-red-50/50 dark:bg-red-950/20'
+                              : 'bg-white dark:bg-zinc-950'
+                          }
+                          title={invalid ? errs.join(' · ') : undefined}
+                        >
+                          <td className="px-3 py-2 align-middle">
+                            <input
+                              className={inputClass}
+                              aria-label={`Date row ${idx + 1}`}
+                              value={row.date}
+                              onChange={(e) => updateRow(row.id, { date: e.target.value })}
+                              placeholder="DD-MMM-YYYY"
+                            />
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <input
+                              className={inputClass}
+                              aria-label={`Description row ${idx + 1}`}
+                              value={row.description}
+                              onChange={(e) =>
+                                updateRow(row.id, { description: e.target.value })
+                              }
+                              placeholder="Description"
+                            />
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <input
+                              className={`${inputClass} tabular-nums`}
+                              aria-label={`Amount row ${idx + 1}`}
+                              inputMode="decimal"
+                              autoComplete="off"
+                              value={row.amount}
+                              onChange={(e) =>
+                                updateRow(row.id, {
+                                  amount: sanitizeUnsignedDecimalInput(e.target.value),
+                                })
+                              }
+                              placeholder="0"
+                            />
+                          </td>
+                          <td className="px-3 py-2 align-middle">
+                            <select
+                              className={inputClass}
+                              aria-label={`Type row ${idx + 1}`}
+                              value={row.type}
+                              onChange={(e) =>
+                                updateRow(row.id, {
+                                  type: e.target.value as 'credit' | 'debit',
+                                })
+                              }
+                            >
+                              <option value="debit">Debit</option>
+                              <option value="credit">Credit</option>
+                            </select>
+                          </td>
+                          <td className="px-2 py-2 align-middle">
+                            <button
+                              type="button"
+                              onClick={() => deleteRow(row.id)}
+                              className="rounded-md p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                              aria-label={`Remove row ${idx + 1}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
             ) : null}
-
-            <details className="rounded-xl border border-zinc-200 bg-zinc-50/80 dark:border-zinc-800 dark:bg-zinc-900/50">
-              <summary className="cursor-pointer select-none px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
-                View extracted text (debug)
-              </summary>
-              <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-words border-t border-zinc-200/80 p-3 font-mono text-xs text-zinc-800 dark:border-zinc-800 dark:text-zinc-200">
-                {extractedText || '(empty)'}
-              </pre>
-            </details>
           </div>
         ) : null}
       </div>

@@ -1,4 +1,4 @@
-import { categoryForAnalytics } from '@/lib/category-suggestion'
+import { categoryForAnalytics, isIncomeCategoryLabel } from '@/lib/category-suggestion'
 import { DEFAULT_CURRENCY, type SupportedCurrencyCode } from '@/lib/currencies'
 import { formatCurrency } from '@/lib/format-currency'
 import { normalizeAmount } from '@/lib/transaction-analytics'
@@ -14,6 +14,11 @@ function localDateKey(d: Date) {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
+}
+
+function isInCalendarMonth(iso: string, ref: Date) {
+  const t = new Date(iso)
+  return t.getFullYear() === ref.getFullYear() && t.getMonth() === ref.getMonth()
 }
 
 function categoryTotalsForMonth(transactions: Transaction[], ref: Date): Map<string, number> {
@@ -224,7 +229,7 @@ function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: MoneyFmt
   if (currentMonthTotal <= 0) {
     return {
       id: 'avg-daily',
-      text: 'Average daily spending will appear once you add transactions this month.',
+      text: 'Average daily spending will appear once you add expense transactions this month.',
     }
   }
   const daysElapsed = Math.max(1, ref.getDate())
@@ -233,6 +238,192 @@ function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: MoneyFmt
     id: 'avg-daily',
     text: `Your average daily spending so far this month is ${fmt(avg, 0)}.`,
   }
+}
+
+function totalIncomeForMonth(transactions: Transaction[], ref: Date): number {
+  const y = ref.getFullYear()
+  const m = ref.getMonth()
+  return transactions.reduce((sum, tx) => {
+    if (!isIncomeCategoryLabel(tx.category)) return sum
+    const t = new Date(tx.created_at)
+    if (t.getFullYear() === y && t.getMonth() === m) {
+      return sum + Math.abs(normalizeAmount(tx.amount))
+    }
+    return sum
+  }, 0)
+}
+
+function totalExpenseForMonth(transactions: Transaction[], ref: Date): number {
+  const y = ref.getFullYear()
+  const m = ref.getMonth()
+  return transactions.reduce((sum, tx) => {
+    if (isIncomeCategoryLabel(tx.category)) return sum
+    const t = new Date(tx.created_at)
+    if (t.getFullYear() === y && t.getMonth() === m) {
+      return sum + Math.abs(normalizeAmount(tx.amount))
+    }
+    return sum
+  }, 0)
+}
+
+function incomeCategoryTotalsForMonth(transactions: Transaction[], ref: Date): Map<string, number> {
+  const y = ref.getFullYear()
+  const m = ref.getMonth()
+  const map = new Map<string, number>()
+  for (const tx of transactions) {
+    if (!isIncomeCategoryLabel(tx.category)) continue
+    const t = new Date(tx.created_at)
+    if (t.getFullYear() !== y || t.getMonth() !== m) continue
+    const cat = categoryForAnalytics(tx.category)
+    map.set(cat, (map.get(cat) ?? 0) + Math.abs(normalizeAmount(tx.amount)))
+  }
+  return map
+}
+
+export function buildSavingsInsights(
+  transactions: Transaction[],
+  ref: Date = new Date(),
+  currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
+): SpendingInsight[] {
+  if (transactions.length === 0) return []
+
+  const fmt: MoneyFmt = (value, maxFrac) =>
+    maxFrac !== undefined
+      ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
+      : formatCurrency(value, currency)
+
+  const income = totalIncomeForMonth(transactions, ref)
+  const expenses = totalExpenseForMonth(transactions, ref)
+
+  if (income <= 0 && expenses <= 0) return []
+
+  if (income <= 0) {
+    return [
+      {
+        id: 'savings-no-income',
+        text: `You spent about ${fmt(expenses)} this month. Log salary or deposits under Income to track savings (income isn’t counted as spending).`,
+      },
+    ]
+  }
+
+  const net = income - expenses
+  if (net >= 0) {
+    return [
+      {
+        id: 'savings-net',
+        text: `You saved about ${fmt(net)} this month after income minus expenses.`,
+      },
+    ]
+  }
+  return [
+    {
+      id: 'savings-net',
+      text: `Spending ran about ${fmt(-net)} ahead of income this month.`,
+    },
+  ]
+}
+
+export function buildIncomeInsights(
+  transactions: Transaction[],
+  ref: Date = new Date(),
+  currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
+): SpendingInsight[] {
+  if (transactions.length === 0) return []
+
+  const fmt: MoneyFmt = (value, maxFrac) =>
+    maxFrac !== undefined
+      ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
+      : formatCurrency(value, currency)
+
+  const currentRef = ref
+  const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
+
+  const incomeCurrent = totalIncomeForMonth(transactions, currentRef)
+  const incomePrev = totalIncomeForMonth(transactions, prevRef)
+  const byCat = incomeCategoryTotalsForMonth(transactions, currentRef)
+
+  let top: { category: string; amount: number } | null = null
+  for (const [category, amount] of byCat) {
+    if (!top || amount > top.amount) top = { category, amount }
+  }
+
+  const insights: SpendingInsight[] = []
+
+  if (incomeCurrent <= 0) {
+    insights.push({
+      id: 'income-none',
+      text: 'No income logged this month. Tag deposits as Income or Salary to track inflows and savings.',
+    })
+    return insights
+  }
+
+  const incomeTxThisMonth = transactions.filter(
+    (t) => isIncomeCategoryLabel(t.category) && isInCalendarMonth(t.created_at, currentRef),
+  )
+
+  const depositPhrase =
+    incomeTxThisMonth.length > 0
+      ? ` (${incomeTxThisMonth.length} ${incomeTxThisMonth.length === 1 ? 'deposit' : 'deposits'})`
+      : ''
+  insights.push({
+    id: 'income-total',
+    text: `Total income this month is about ${fmt(incomeCurrent)}${depositPhrase}.`,
+  })
+
+  if (top && top.amount > 0) {
+    insights.push({
+      id: 'income-top-source',
+      text: `Your largest income category is ${top.category} (~${fmt(top.amount)} this month).`,
+    })
+  }
+
+  if (incomePrev > 0) {
+    const change = ((incomeCurrent - incomePrev) / incomePrev) * 100
+    const rounded = Math.round(change)
+    if (rounded === 0) {
+      insights.push({
+        id: 'income-mom',
+        text: `Income is about the same as last month (${fmt(incomeCurrent)} vs ${fmt(incomePrev)}).`,
+      })
+    } else if (rounded > 0) {
+      insights.push({
+        id: 'income-mom',
+        text: `Income is up about ${rounded}% compared with last month.`,
+      })
+    } else {
+      insights.push({
+        id: 'income-mom',
+        text: `Income is down about ${Math.abs(rounded)}% compared with last month.`,
+      })
+    }
+  } else if (incomePrev === 0 && incomeCurrent > 0) {
+    insights.push({
+      id: 'income-mom',
+      text: 'Last month had no logged income to compare against.',
+    })
+  }
+
+  const amounts = incomeTxThisMonth
+    .map((t) => Math.abs(normalizeAmount(t.amount)))
+    .filter((a) => a > 0)
+  if (amounts.length >= 3) {
+    const mean = amounts.reduce((a, b) => a + b, 0) / amounts.length
+    const variance = amounts.reduce((s, x) => s + (x - mean) ** 2, 0) / amounts.length
+    const cv = mean > 0 ? Math.sqrt(variance) / mean : 0
+    if (cv < 0.2) {
+      insights.push({
+        id: 'income-consistency',
+        text: 'Income deposits this month have been fairly steady in size.',
+      })
+    } else if (cv > 0.5) {
+      insights.push({
+        id: 'income-consistency',
+        text: 'Income deposit sizes varied a lot this month—worth a quick review if you rely on predictable pay.',
+      })
+    }
+  }
+
+  return insights
 }
 
 export function buildSpendingInsights(
@@ -244,13 +435,23 @@ export function buildSpendingInsights(
     return []
   }
 
+  const expenseTx = transactions.filter((t) => !isIncomeCategoryLabel(t.category))
+  if (expenseTx.length === 0) {
+    return [
+      {
+        id: 'expenses-none',
+        text: 'No expense transactions yet—only income-style categories in your ledger. Add purchases (Food, Transport, etc.) for spending insights.',
+      },
+    ]
+  }
+
   const currentRef = ref
   const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
 
-  const currentByCat = categoryTotalsForMonth(transactions, currentRef)
-  const prevByCat = categoryTotalsForMonth(transactions, prevRef)
-  const currentTotal = totalForMonth(transactions, currentRef)
-  const previousTotal = totalForMonth(transactions, prevRef)
+  const currentByCat = categoryTotalsForMonth(expenseTx, currentRef)
+  const prevByCat = categoryTotalsForMonth(expenseTx, prevRef)
+  const currentTotal = totalForMonth(expenseTx, currentRef)
+  const previousTotal = totalForMonth(expenseTx, prevRef)
   const top = topCategoryThisMonth(currentByCat)
 
   const fmt: MoneyFmt = (value, maxFrac) =>
@@ -268,7 +469,7 @@ export function buildSpendingInsights(
   const cm = topCategoryMomInsight(top, currentByCat, prevByCat, fmt)
   if (cm) insights.push(cm)
 
-  const daily = dailySpikeInsight(transactions, currentRef, currentTotal, fmt)
+  const daily = dailySpikeInsight(expenseTx, currentRef, currentTotal, fmt)
   if (daily) {
     insights.push(daily)
   } else {

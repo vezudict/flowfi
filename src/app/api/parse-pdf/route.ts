@@ -4,15 +4,14 @@ export const runtime = "nodejs";
 
 export async function POST(req: Request) {
   try {
-    console.log("🔥 API HIT");
-
     const formData = await req.formData();
     const file = formData.get("file") as File;
 
     if (!file) {
-      return new Response(JSON.stringify({ error: "No file" }), {
-        status: 400,
-      });
+      return new Response(
+        JSON.stringify({ error: "No file uploaded. Choose a PDF and try again." }),
+        { status: 400 },
+      );
     }
 
     const arrayBuffer = await file.arrayBuffer();
@@ -20,13 +19,14 @@ export async function POST(req: Request) {
 
     const data = await pdfParse(buffer);
 
-    console.log("✅ Extracted length:", data.text.length);
-
     return Response.json({ text: data.text });
-  } catch (err) {
-    console.error("💥 ERROR:", err);
-    return new Response(JSON.stringify({ error: "Parsing failed" }), {
-      status: 500,
-    });
+  } catch {
+    return new Response(
+      JSON.stringify({
+        error:
+          "We couldn't read that PDF. Try another file or export the statement again from your bank.",
+      }),
+      { status: 500 },
+    );
   }
 }

@@ -1,3 +1,4 @@
+import { isIncomeCategoryLabel } from '@/lib/category-suggestion'
 import {
   computeAnalytics,
   normalizeAmount,
@@ -32,10 +33,12 @@ function isInCurrentMonth(iso: string, ref: Date) {
   )
 }
 
-function totalForMonth(transactions: Transaction[], ref: Date): number {
+/** Spending only (excludes income-category rows). */
+function expenseTotalForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   return transactions.reduce((sum, tx) => {
+    if (isIncomeCategoryLabel(tx.category)) return sum
     const t = new Date(tx.created_at)
     if (t.getFullYear() === y && t.getMonth() === m) {
       return sum + Math.abs(normalizeAmount(tx.amount))
@@ -149,7 +152,7 @@ export function computeFinancialHealthScore(
     }
   } else {
     const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 15)
-    const lastTotal = totalForMonth(transactions, prevRef)
+    const lastTotal = expenseTotalForMonth(transactions, prevRef)
     const dim = daysInMonth(ref)
     const day = Math.max(1, ref.getDate())
     const projected = spent * (dim / day)

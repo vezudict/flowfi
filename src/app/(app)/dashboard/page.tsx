@@ -28,7 +28,11 @@ import {
   buildRecurringInsights,
   getRecurringTransactionIds,
 } from '@/lib/recurring-transactions'
-import { buildSpendingInsights } from '@/lib/spending-insights'
+import {
+  buildIncomeInsights,
+  buildSavingsInsights,
+  buildSpendingInsights,
+} from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
 import {
   countActiveFilters,
@@ -329,6 +333,16 @@ export default function DashboardPage() {
     [transactions, currency],
   )
 
+  const savingsInsights = useMemo(
+    () => buildSavingsInsights(transactions, new Date(), currency),
+    [transactions, currency],
+  )
+
+  const incomeInsights = useMemo(
+    () => buildIncomeInsights(transactions, new Date(), currency),
+    [transactions, currency],
+  )
+
   const recurringTransactionIds = useMemo(
     () => getRecurringTransactionIds(transactions),
     [transactions],
@@ -340,8 +354,13 @@ export default function DashboardPage() {
   )
 
   const allSpendingInsights = useMemo(
-    () => [...recurringInsights, ...spendingInsights],
-    [recurringInsights, spendingInsights],
+    () => [
+      ...savingsInsights,
+      ...spendingInsights,
+      ...incomeInsights,
+      ...recurringInsights,
+    ],
+    [savingsInsights, spendingInsights, incomeInsights, recurringInsights],
   )
 
   const financialHealth = useMemo(
@@ -651,7 +670,7 @@ export default function DashboardPage() {
       ) : (
         <section className="grid gap-4 lg:grid-cols-2">
           <CategoryPieChart
-            title="By category"
+            title="Spending by category"
             data={analytics.pieByCategory}
             currency={currency}
           />
