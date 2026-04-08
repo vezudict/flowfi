@@ -245,7 +245,7 @@ function DashboardLoadingSkeleton() {
 
 export default function DashboardPage() {
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, session } = useAuth()
   const { currency } = useCurrency()
   const [error, setError] = useState<string | null>(null)
 
@@ -427,32 +427,48 @@ export default function DashboardPage() {
   }, [user, loadDashboard])
 
   useEffect(() => {
-    if (!user || transactions.length === 0) {
+    if (authLoading) return
+    if (!transactions || transactions.length === 0) {
       setAiInsights(null)
       return
     }
+    if (!user || !session?.access_token) return
+
     let cancelled = false
     setAiInsightsLoading(true)
-    const analyticsSnapshot = computeAnalytics(transactions)
-    authedFetch('/api/ai-insights', {
-      method: 'POST',
-      json: { analytics: analyticsSnapshot, currency },
-    })
-      .then((res) => readAuthedJson<{ insights: string[] }>(res))
-      .then((result) => {
+
+    const fetchAI = async () => {
+      console.log('TRIGGERING AI INSIGHTS', transactions.length)
+      try {
+        const analyticsSnapshot = computeAnalytics(transactions)
+        const res = await authedFetch('/api/ai-insights', {
+          method: 'POST',
+          json: { analytics: analyticsSnapshot, currency },
+        })
+        const data: unknown = await res.json()
+        console.log('AI INSIGHTS RESPONSE', data)
         if (cancelled) return
         setAiInsightsLoading(false)
-        if (result.ok && Array.isArray(result.data.insights)) {
-          setAiInsights(result.data.insights)
+        if (
+          res.ok &&
+          data &&
+          typeof data === 'object' &&
+          'insights' in data &&
+          Array.isArray((data as { insights: unknown }).insights)
+        ) {
+          setAiInsights((data as { insights: string[] }).insights)
         }
-      })
-      .catch(() => {
+      } catch (err) {
+        console.error('AI INSIGHTS ERROR', err)
         if (!cancelled) setAiInsightsLoading(false)
-      })
+      }
+    }
+
+    void fetchAI()
     return () => {
       cancelled = true
     }
-  }, [transactions, currency, user])
+  }, [transactions, currency, user, session?.access_token, authLoading])
 
   function handleTransactionSaved(updated: Transaction) {
     const normalized = normalizeTransaction(updated)

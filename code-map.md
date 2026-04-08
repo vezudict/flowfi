@@ -56,7 +56,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/app/signup/page.tsx` | Sign-up | Auth |
 | `src/app/guide/page.tsx` | In-app guide | Learn |
 | `src/app/(app)/layout.tsx` | Authenticated shell (`AppShell`) | Dashboard, tools, settings |
-| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, **`getCategoryLabel` + `getCategoryStyleClass`** on category meta/title fallback, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount. **`CategoryPieChart`** passes **`formatSegmentLabel={getCategoryLabel}`**. **`SummaryCard`** top category uses display label + accent class | Main product surface |
+| `src/app/(app)/dashboard/page.tsx` | **Dashboard hub:** metrics, charts, add-tx form, filters. **Recent activity:** scrollable list with sticky **Bulk select** header, floating bulk-delete bar, empty state. **`SelectableTransactionRow` (memo):** `[checkbox | description+meta | amount+badge+actions]` — description primary line, **`getCategoryLabel` + `getCategoryStyleClass`** on category meta/title fallback, amount tinted debit/credit, **`TransactionEntryTypeBadge`** beside amount. **`CategoryPieChart`** passes **`formatSegmentLabel={getCategoryLabel}`**. **`SummaryCard`** top category uses display label + accent class. **AI insights:** `useEffect` on **`transactions`** (after **`!authLoading`** and **`session.access_token`**) → **`authedFetch` POST `/api/ai-insights`** with `{ analytics: computeAnalytics(transactions), currency }` → route cache / OpenAI (see API row) | Main product surface |
 | `src/app/(app)/settings/page.tsx` | Appearance, currency | User prefs |
 | `src/app/(app)/tools/page.tsx` | Tools index grid | Navigation |
 | `src/app/(app)/tools/credit-score/page.tsx` | Credit score tool page | Tool shell + client |
@@ -160,7 +160,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 | `src/app/api/parse-pdf/route.ts` | PDF → extracted text / parse |
 | `src/app/api/profile/budget/route.ts` | PATCH monthly budget |
 | `src/app/api/profile/currency/route.ts` | PATCH preferred currency |
-| `src/app/api/ai-insights/route.ts` | POST generate/return AI insights; checks `ai_insights_cache` first; calls OpenAI on miss; caches result per user+month |
+| `src/app/api/ai-insights/route.ts` | POST JSON body **`{ analytics, currency }`** (required). **Flow:** dashboard **`useEffect`** → this route → read **`ai_insights_cache`** → on miss **`generateAIInsights`** (OpenAI) → upsert cache |
 
 **Flow:** Browser uses `authedFetch` + Bearer token → Route Handler uses `supabase-server` + RLS/user scoping + `rate-limit` + `sensitive-inputs` validation.
 
@@ -185,8 +185,9 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 
 ### Dashboard
 
-- **Logic:** `transaction-analytics.ts`, `spending-insights.ts`, `recurring-transactions.ts`, `financial-health-score.ts`, `profile-budget.ts`
+- **Logic:** `transaction-analytics.ts`, `spending-insights.ts`, `recurring-transactions.ts`, `financial-health-score.ts`, `profile-budget.ts`, `ai-insights.ts` (server)
 - **UI:** Dashboard page + dashboard components (cards, charts, insights)
+- **AI insights:** `dashboard/page.tsx` **`useEffect`** (when `transactions` non-empty, auth ready, session token present) → **`POST /api/ai-insights`** → **`ai_insights_cache`** → **`generateAIInsights`** (OpenAI) on cache miss
 
 ### Tools (tax, rent vs buy, credit, decision)
 
