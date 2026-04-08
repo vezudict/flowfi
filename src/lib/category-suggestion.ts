@@ -1,61 +1,72 @@
 /**
- * Keyword → category rules for auto-detecting transaction categories from description.
- * First matching rule wins; add new entries to extend behavior.
+ * Keyword → category buckets for imports and auto-suggest. All persisted labels are lowercase.
+ * Order in CATEGORY_KEYWORDS matters: earlier buckets win on first matching keyword.
  */
-export type CategoryKeywordRule = {
-  keywords: readonly string[]
-  category: string
+export const CATEGORY_KEYWORDS = {
+  food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'dining'],
+  transport: ['uber', 'ola', 'fuel', 'petrol', 'diesel', 'bus', 'train'],
+  subscriptions: ['netflix', 'spotify', 'prime', 'subscription'],
+  utilities: ['electricity', 'water', 'internet', 'bill', 'wifi'],
+  shopping: ['amazon', 'flipkart', 'store', 'purchase'],
+  income: ['salary', 'freelance', 'income', 'payment', 'credited'],
+} as const
+
+export type KeywordCategoryKey = keyof typeof CATEGORY_KEYWORDS
+export type StandardCategory = KeywordCategoryKey | 'other'
+
+/** Trim, collapse spaces, lowercase — single source for stored category labels. */
+export function normalizeCategoryLabel(raw: string): string {
+  return raw.trim().replace(/\s+/g, ' ').toLowerCase()
 }
 
-/**
- * Order matters: first matching keyword wins (put specific phrases before generic "bill").
- */
-export const CATEGORY_KEYWORD_RULES: readonly CategoryKeywordRule[] = [
-  { keywords: ['netflix'], category: 'Subscriptions' },
-  { keywords: ['spotify', 'hotstar', 'amazon prime', 'prime video'], category: 'Subscriptions' },
-  { keywords: ['swiggy', 'zomato'], category: 'Food' },
-  { keywords: ['uber', 'ola'], category: 'Transport' },
-  { keywords: ['electricity', 'electric bill', 'power bill', 'discom', 'bescom'], category: 'Utilities' },
-  { keywords: ['amazon', 'flipkart'], category: 'Shopping' },
-  { keywords: ['internet', 'broadband', 'fiber', 'wifi'], category: 'Bills' },
-  { keywords: ['bill', 'recharge'], category: 'Bills' },
-] as const
-
-/** Normalize description before keyword matching (trim + lowercase). */
+/** Normalize description before keyword matching. */
 export function normalizeDescriptionForCategory(description: string): string {
   return description.trim().toLowerCase()
 }
 
-export function suggestCategoryFromDescription(description: string): string | null {
+/**
+ * First keyword hit wins (bucket order follows CATEGORY_KEYWORDS).
+ * @returns A CATEGORY_KEYWORDS key, or `other`.
+ */
+export function detectCategory(description: string): StandardCategory {
   const text = normalizeDescriptionForCategory(description)
-  if (!text) return null
+  if (!text) return 'other'
 
-  for (const rule of CATEGORY_KEYWORD_RULES) {
-    for (const keyword of rule.keywords) {
-      if (text.includes(keyword)) return rule.category
+  for (const [category, keywords] of Object.entries(CATEGORY_KEYWORDS) as [
+    KeywordCategoryKey,
+    readonly string[],
+  ][]) {
+    for (const keyword of keywords) {
+      if (text.includes(keyword)) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('CATEGORY DETECTED:', description, '→', category)
+        }
+        return category
+      }
     }
   }
-  return null
+  return 'other'
+}
+
+/** @returns Detected bucket, or null when no keyword matches (UI hint). */
+export function suggestCategoryFromDescription(description: string): string | null {
+  const c = detectCategory(description)
+  return c === 'other' ? null : c
 }
 
 /**
- * Category labels excluded from analytics and insights (historical junk like legacy import tags).
- * Treated as Other in aggregations so they do not skew top category or charts.
+ * Category labels excluded from analytics (legacy import tags). Treated as other in aggregations.
  */
 export const EXCLUDED_ANALYTICS_CATEGORY_LABELS = new Set(['imported'])
 
-/** Map raw stored category to the label used in charts and insights. */
+/** Map raw stored category to analytics label (normalized lowercase; empty → other). */
 export function categoryForAnalytics(raw: string): string {
-  const t = raw.trim().replace(/\s+/g, ' ')
-  if (!t) return 'Other'
-  if (EXCLUDED_ANALYTICS_CATEGORY_LABELS.has(t.toLowerCase())) return 'Other'
+  const t = normalizeCategoryLabel(raw)
+  if (!t) return 'other'
+  if (EXCLUDED_ANALYTICS_CATEGORY_LABELS.has(t)) return 'other'
   return t
 }
 
-/**
- * Money-in labels for **category text hints** (imports/heuristics). Debit/credit comes from
- * `transaction_type` on each row.
- */
 const INCOME_CATEGORY_LABELS = new Set(
   [
     'income',
@@ -78,62 +89,74 @@ export function isIncomeCategoryLabel(raw: string): boolean {
   return INCOME_CATEGORY_LABELS.has(n)
 }
 
-/** Whether a CSV-provided category cell is safe to use as-is. */
 export function isPlausibleImportedCategoryLabel(raw: string): boolean {
-  const t = raw.trim().replace(/\s+/g, ' ')
+  const t = normalizeCategoryLabel(raw)
   if (t.length === 0 || t.length > 64) return false
   if (!/[a-z0-9]/i.test(t)) return false
-  if (EXCLUDED_ANALYTICS_CATEGORY_LABELS.has(t.toLowerCase())) return false
+  if (EXCLUDED_ANALYTICS_CATEGORY_LABELS.has(t)) return false
   return true
 }
 
-/** CSV or manual labels that should retry keyword classification when description exists. */
 export function isOtherLikeCategoryLabel(label: string): boolean {
-  return label.trim().toLowerCase() === 'other'
+  return normalizeCategoryLabel(label) === 'other'
 }
 
 /**
- * Single resolver for persisted category: optional CSV column, then keyword rules on description, else Other.
- * If the CSV category is "Other" and a description exists, keywords are applied to reduce generic Other.
+ * Final stored category for API/body validation path:
+ * 1. Normalize label (lowercase, trim).
+ * 2. If other-like and description matches a bucket, override with detection.
+ * 3. Else keep explicit bucket (including free-form labels users type).
+ */
+export function finalizeTransactionCategory(
+  category: string,
+  description: string | null,
+): string {
+  const normalized = normalizeCategoryLabel(category)
+  if (!isOtherLikeCategoryLabel(normalized)) return normalized
+  const desc = (description ?? '').trim()
+  if (desc) {
+    const d = detectCategory(desc)
+    if (d !== 'other') return d
+  }
+  return 'other'
+}
+
+/**
+ * CSV resolver: plausible explicit column wins unless it is other-like (then keywords); else keywords; else other.
  */
 export function resolveTransactionCategory(input: {
   description: string | null
   csvCategory?: string | null
 }): string {
   const desc = (input.description ?? '').trim()
-  const csv = input.csvCategory?.trim() ?? ''
+  const csvRaw = input.csvCategory?.trim() ?? ''
+  const normalizedCsv = csvRaw ? normalizeCategoryLabel(csvRaw) : ''
 
-  if (csv && isPlausibleImportedCategoryLabel(csv)) {
-    const normalized = csv.replace(/\s+/g, ' ').trim()
-    if (!isOtherLikeCategoryLabel(normalized)) {
-      return normalized
-    }
+  if (normalizedCsv && isPlausibleImportedCategoryLabel(normalizedCsv)) {
+    if (!isOtherLikeCategoryLabel(normalizedCsv)) return normalizedCsv
     if (desc) {
-      const fromDesc = suggestCategoryFromDescription(desc)
-      if (fromDesc) return fromDesc
+      const fromDesc = detectCategory(desc)
+      if (fromDesc !== 'other') return fromDesc
     }
-    return normalized
+    return 'other'
   }
 
-  const fromDesc = suggestCategoryFromDescription(desc)
-  if (fromDesc) return fromDesc
-  return 'Other'
+  if (desc) {
+    const fromDesc = detectCategory(desc)
+    if (fromDesc !== 'other') return fromDesc
+  }
+  return 'other'
 }
 
 /**
- * Simpler labels for PDF / bank-statement imports (lowercase).
- * Order: specific merchants/utilities before generic credit → income.
+ * PDF / bank import: keywords first; generic credits default to income (no AI).
  */
 export function resolvePdfImportCategory(input: {
   description: string
   type: 'credit' | 'debit'
 }): string {
-  const t = normalizeDescriptionForCategory(input.description)
-  if (t.includes('netflix') || t.includes('spotify') || t.includes('hotstar')) return 'subscriptions'
-  if (t.includes('swiggy') || t.includes('zomato')) return 'food'
-  if (t.includes('uber')) return 'transport'
-  if (t.includes('electricity') || t.includes('electric bill') || t.includes('power bill')) return 'utilities'
-  if (t.includes('salary')) return 'income'
+  const fromDesc = detectCategory(input.description)
+  if (fromDesc !== 'other') return fromDesc
   if (input.type === 'credit') return 'income'
   return 'other'
 }

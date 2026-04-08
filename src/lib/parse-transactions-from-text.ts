@@ -3,22 +3,15 @@
  * Splits on date anchors; last numeric token in each block is treated as running balance (ignored).
  */
 
-export type TransactionCategory =
-  | 'food'
-  | 'transport'
-  | 'income'
-  | 'bills'
-  | 'groceries'
-  | 'subscriptions'
-  | 'utilities'
-  | 'other'
+import { detectCategory } from '@/lib/category-suggestion'
 
 export type Transaction = {
   date: string
   description: string
   amount: number
   type: 'credit' | 'debit'
-  category: TransactionCategory
+  /** Keyword bucket from `detectCategory` (or `other`); confirm path uses `resolvePdfImportCategory`. */
+  category: string
 }
 
 /** Date token: DD-MMM-YYYY (day may be 1–2 digits). */
@@ -95,26 +88,8 @@ function normalizeDescription(desc: string): string {
   return desc.replace(REDUNDANT_WORDS, '').replace(/\s+/g, ' ').trim()
 }
 
-const CATEGORY_RULES: Array<{ pattern: RegExp; category: TransactionCategory }> = [
-  { pattern: /\b(netflix|spotify|hotstar)\b/i, category: 'subscriptions' },
-  { pattern: /\b(swiggy|zomato)\b/i, category: 'food' },
-  { pattern: /\b(uber|ola|fuel|petrol|diesel)\b/i, category: 'transport' },
-  { pattern: /\b(salary|freelance)\b/i, category: 'income' },
-  { pattern: /\b(electricity|electric\s+bill|power\s+bill|discom|bescom)\b/i, category: 'utilities' },
-  { pattern: /\b(internet|broadband|fiber|wifi)\b/i, category: 'bills' },
-  { pattern: /\b(grocery|groceries)\b/i, category: 'groceries' },
-  { pattern: /\b(bill|recharge)\b/i, category: 'bills' },
-]
-
-function detectCategory(description: string): TransactionCategory {
-  for (const { pattern, category } of CATEGORY_RULES) {
-    if (pattern.test(description)) return category
-  }
-  return 'other'
-}
-
-/** If parser defaulted to other, retry keywords on normalized description (matches dashboard CSV path). */
-function detectCategoryWithFallback(rawDescription: string, normalizedDescription: string): TransactionCategory {
+/** If raw line misses keywords, retry on UPI-normalized description (same idea as CSV path). */
+function detectCategoryWithFallback(rawDescription: string, normalizedDescription: string): string {
   const direct = detectCategory(rawDescription)
   if (direct !== 'other') return direct
   if (!normalizedDescription.trim()) return 'other'

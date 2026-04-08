@@ -1,3 +1,4 @@
+import { finalizeTransactionCategory } from '@/lib/category-suggestion'
 import { isSupportedCurrency, type SupportedCurrencyCode } from '@/lib/currencies'
 import type { ImportedTransactionRow } from '@/lib/transactions'
 
@@ -72,17 +73,23 @@ export function parseAndValidateTransactionBody(
       return { ok: false, message: 'transactionType must be debit or credit.' }
     }
     transaction_type = parsed
-    if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
-      return {
-        ok: false,
-        message:
-          'Expenses cannot use income categories (Income, Salary, Freelance). Use an expense category for debits, or Credit for deposits.',
-      }
+  }
+  // transaction_type may be null here — route handler must resolve it before insert
+
+  const resolvedCategory = finalizeTransactionCategory(category, description)
+
+  if (transaction_type === 'debit' && debitUsesIncomeCategory(resolvedCategory)) {
+    return {
+      ok: false,
+      message:
+        'Expenses cannot use income categories (Income, Salary, Freelance). Use an expense category for debits, or Credit for deposits.',
     }
   }
-  // transaction_type may be null here — route handler must resolve it before inserting
 
-  return { ok: true, data: { amount, category, description, transaction_type } }
+  return {
+    ok: true,
+    data: { amount, category: resolvedCategory, description, transaction_type },
+  }
 }
 
 export function parseAndValidateBudgetBody(
@@ -165,12 +172,6 @@ export function parseAndValidateImportBody(
     if (category.length < 1 || category.length > MAX_CATEGORY_LEN) {
       return { ok: false, message: `Invalid category at row ${i + 1}.` }
     }
-    if (transaction_type === 'debit' && debitUsesIncomeCategory(category)) {
-      return {
-        ok: false,
-        message: `Row ${i + 1}: debits cannot use income categories (Income, Salary, Freelance).`,
-      }
-    }
     let description: string | null = null
     if (row.description !== null && row.description !== undefined) {
       if (typeof row.description !== 'string') {
@@ -182,6 +183,14 @@ export function parseAndValidateImportBody(
       }
       description = d.length ? d : null
     }
+    const finalizedCategory = finalizeTransactionCategory(category, description)
+
+    if (transaction_type === 'debit' && debitUsesIncomeCategory(finalizedCategory)) {
+      return {
+        ok: false,
+        message: `Row ${i + 1}: debits cannot use income categories (Income, Salary, Freelance).`,
+      }
+    }
     const createdAt = row.createdAt
     if (typeof createdAt !== 'string' || !createdAt.trim()) {
       return { ok: false, message: `Invalid date at row ${i + 1}.` }
@@ -190,7 +199,13 @@ export function parseAndValidateImportBody(
     if (Number.isNaN(Date.parse(created))) {
       return { ok: false, message: `Invalid date at row ${i + 1}.` }
     }
-    out.push({ amount, category, description, createdAt: created, transaction_type })
+    out.push({
+      amount,
+      category: finalizedCategory,
+      description,
+      createdAt: created,
+      transaction_type,
+    })
   }
 
   return { ok: true, data: out }
