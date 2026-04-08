@@ -25,11 +25,33 @@ function isInCalendarMonth(iso: string, ref: Date) {
   return t.getFullYear() === ref.getFullYear() && t.getMonth() === ref.getMonth()
 }
 
-function categoryTotalsForMonth(transactions: Transaction[], ref: Date): Map<string, number> {
+function medianPositive(values: number[]): number {
+  const nums = values.filter((v) => v > 0).sort((a, b) => a - b)
+  if (nums.length === 0) return 0
+  const mid = Math.floor(nums.length / 2)
+  return nums.length % 2 ? nums[mid]! : (nums[mid - 1]! + nums[mid]!) / 2
+}
+
+type MoneyFmt = (value: number, maxFrac?: 0 | 2) => string
+
+// ---------------------------------------------------------------------------
+// Expense helpers — debit-only (self-enforcing via isExpenseForMetrics)
+// ---------------------------------------------------------------------------
+
+/**
+ * Debit spending totals per category for `ref` month.
+ * Excludes the "income" category label as a belt-and-suspenders guard for
+ * any debit row manually tagged with that label.
+ */
+function expenseCategoryTotals(
+  transactions: Transaction[],
+  ref: Date,
+): Map<string, number> {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   const map = new Map<string, number>()
   for (const tx of transactions) {
+    if (!isExpenseForMetrics(tx)) continue
     const t = new Date(tx.created_at)
     if (t.getFullYear() !== y || t.getMonth() !== m) continue
     const cat = categoryForAnalytics(tx.category)
@@ -39,10 +61,12 @@ function categoryTotalsForMonth(transactions: Transaction[], ref: Date): Map<str
   return map
 }
 
-function totalForMonth(transactions: Transaction[], ref: Date): number {
+/** Total debit spending for `ref` month. */
+function totalExpenseForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   return transactions.reduce((sum, tx) => {
+    if (!isExpenseForMetrics(tx)) return sum
     const t = new Date(tx.created_at)
     if (t.getFullYear() === y && t.getMonth() === m) {
       return sum + Math.abs(normalizeAmount(tx.amount))
@@ -60,15 +84,6 @@ function topCategoryThisMonth(
   }
   return best && best.amount > 0 ? best : null
 }
-
-function medianPositive(values: number[]): number {
-  const nums = values.filter((v) => v > 0).sort((a, b) => a - b)
-  if (nums.length === 0) return 0
-  const mid = Math.floor(nums.length / 2)
-  return nums.length % 2 ? nums[mid]! : (nums[mid - 1]! + nums[mid]!) / 2
-}
-
-type MoneyFmt = (value: number, maxFrac?: 0 | 2) => string
 
 function overallMomInsight(
   current: number,
@@ -113,7 +128,10 @@ function overallMomInsight(
   }
 }
 
-function topCategoryInsight(top: { category: string; amount: number } | null, fmt: MoneyFmt): SpendingInsight | null {
+function topCategoryInsight(
+  top: { category: string; amount: number } | null,
+  fmt: MoneyFmt,
+): SpendingInsight | null {
   if (!top) {
     return {
       id: 'top-category',
@@ -126,7 +144,6 @@ function topCategoryInsight(top: { category: string; amount: number } | null, fm
   }
 }
 
-/** Month-over-month change for the category that leads spending this month. */
 function topCategoryMomInsight(
   top: { category: string; amount: number } | null,
   currentByCat: Map<string, number>,
@@ -163,6 +180,7 @@ function topCategoryMomInsight(
   }
 }
 
+/** Debit-only daily spike detection. */
 function dailySpikeInsight(
   transactions: Transaction[],
   ref: Date,
@@ -173,6 +191,7 @@ function dailySpikeInsight(
   const m = ref.getMonth()
   const dayTotals = new Map<string, number>()
   for (const tx of transactions) {
+    if (!isExpenseForMetrics(tx)) continue
     const t = new Date(tx.created_at)
     if (t.getFullYear() !== y || t.getMonth() !== m) continue
     const key = localDateKey(t)
@@ -184,10 +203,7 @@ function dailySpikeInsight(
   let max = 0
   let maxKey: string | null = null
   for (const [k, v] of dayTotals) {
-    if (v > max) {
-      max = v
-      maxKey = k
-    }
+    if (v > max) { max = v; maxKey = k }
   }
   if (!maxKey || max < med * 2) return null
   if (max < monthTotal * 0.14) return null
@@ -197,13 +213,12 @@ function dailySpikeInsight(
   })
   return {
     id: 'spike-daily',
-    text: `Unusual spike on ${label}: about ${fmt(max)} in one day (${Math.round((max / monthTotal) * 100)}% of this month’s total so far).`,
+    text: `Unusual spike on ${label}: about ${fmt(max)} in one day (${Math.round((max / monthTotal) * 100)}% of this month's total so far).`,
   }
 }
 
 /**
- * Category other than `skipCategory` where spending roughly doubled vs last month
- * (avoids duplicating the top-category MoM line).
+ * Category other than `skipCategory` where debit spending roughly doubled vs last month.
  */
 function categorySpikeInsight(
   currentByCat: Map<string, number>,
@@ -230,7 +245,11 @@ function categorySpikeInsight(
   }
 }
 
-function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: MoneyFmt): SpendingInsight | null {
+function averageDailyInsight(
+  currentMonthTotal: number,
+  ref: Date,
+  fmt: MoneyFmt,
+): SpendingInsight | null {
   if (currentMonthTotal <= 0) {
     return {
       id: 'avg-daily',
@@ -245,6 +264,10 @@ function averageDailyInsight(currentMonthTotal: number, ref: Date, fmt: MoneyFmt
   }
 }
 
+// ---------------------------------------------------------------------------
+// Income helpers — credit-only (self-enforcing via isIncomeForMetrics)
+// ---------------------------------------------------------------------------
+
 function totalIncomeForMonth(transactions: Transaction[], ref: Date): number {
   const y = ref.getFullYear()
   const m = ref.getMonth()
@@ -258,20 +281,7 @@ function totalIncomeForMonth(transactions: Transaction[], ref: Date): number {
   }, 0)
 }
 
-function totalExpenseForMonth(transactions: Transaction[], ref: Date): number {
-  const y = ref.getFullYear()
-  const m = ref.getMonth()
-  return transactions.reduce((sum, tx) => {
-    if (!isExpenseForMetrics(tx)) return sum
-    const t = new Date(tx.created_at)
-    if (t.getFullYear() === y && t.getMonth() === m) {
-      return sum + Math.abs(normalizeAmount(tx.amount))
-    }
-    return sum
-  }, 0)
-}
-
-function incomeCategoryTotalsForMonth(transactions: Transaction[], ref: Date): Map<string, number> {
+function incomeCategoryTotals(transactions: Transaction[], ref: Date): Map<string, number> {
   const y = ref.getFullYear()
   const m = ref.getMonth()
   const map = new Map<string, number>()
@@ -285,6 +295,11 @@ function incomeCategoryTotalsForMonth(transactions: Transaction[], ref: Date): M
   return map
 }
 
+// ---------------------------------------------------------------------------
+// Public exports
+// ---------------------------------------------------------------------------
+
+/** Savings insight: income (credits) minus expenses (debits). */
 export function buildSavingsInsights(
   transactions: Transaction[],
   ref: Date = new Date(),
@@ -328,6 +343,7 @@ export function buildSavingsInsights(
   ]
 }
 
+/** Income insights: credit transactions only. */
 export function buildIncomeInsights(
   transactions: Transaction[],
   ref: Date = new Date(),
@@ -340,10 +356,8 @@ export function buildIncomeInsights(
       ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
       : formatCurrency(value, currency)
 
-  const currentRef = ref
-
-  const incomeCurrent = totalIncomeForMonth(transactions, currentRef)
-  const byCat = incomeCategoryTotalsForMonth(transactions, currentRef)
+  const incomeCurrent = totalIncomeForMonth(transactions, ref)
+  const byCat = incomeCategoryTotals(transactions, ref)
 
   let top: { category: string; amount: number } | null = null
   for (const [category, amount] of byCat) {
@@ -361,7 +375,7 @@ export function buildIncomeInsights(
   }
 
   const incomeTxThisMonth = transactions.filter(
-    (t) => isIncomeForMetrics(t) && isInCalendarMonth(t.created_at, currentRef),
+    (t) => isIncomeForMetrics(t) && isInCalendarMonth(t.created_at, ref),
   )
 
   const depositPhrase =
@@ -414,18 +428,15 @@ export function buildIncomeInsights(
   return insights
 }
 
-/** Debit-only spending insights (totals, top category, averages, spikes). */
+/** Expense insights: debit transactions only. Totals, top category, averages, spikes. */
 export function buildExpenseInsights(
   transactions: Transaction[],
   ref: Date = new Date(),
   currency: SupportedCurrencyCode = DEFAULT_CURRENCY,
 ): SpendingInsight[] {
-  if (transactions.length === 0) {
-    return []
-  }
+  if (transactions.length === 0) return []
 
-  const expenseTx = transactions.filter((t) => isExpenseForMetrics(t))
-  if (expenseTx.length === 0) {
+  if (!transactions.some(isExpenseForMetrics)) {
     return [
       {
         id: 'expenses-none',
@@ -434,19 +445,19 @@ export function buildExpenseInsights(
     ]
   }
 
-  const currentRef = ref
   const prevRef = new Date(ref.getFullYear(), ref.getMonth() - 1, 1)
 
-  const currentByCat = categoryTotalsForMonth(expenseTx, currentRef)
-  const prevByCat = categoryTotalsForMonth(expenseTx, prevRef)
-  const currentTotal = totalForMonth(expenseTx, currentRef)
-  const previousTotal = totalForMonth(expenseTx, prevRef)
+  const currentByCat = expenseCategoryTotals(transactions, ref)
+  const prevByCat = expenseCategoryTotals(transactions, prevRef)
+  const currentTotal = totalExpenseForMonth(transactions, ref)
+  const previousTotal = totalExpenseForMonth(transactions, prevRef)
   const top = topCategoryThisMonth(currentByCat)
 
   const fmt: MoneyFmt = (value, maxFrac) =>
     maxFrac !== undefined
       ? formatCurrency(value, currency, { maximumFractionDigits: maxFrac })
       : formatCurrency(value, currency)
+
   const insights: SpendingInsight[] = []
 
   if (currentTotal > 0) {
@@ -465,7 +476,7 @@ export function buildExpenseInsights(
   const cm = topCategoryMomInsight(top, currentByCat, prevByCat, fmt)
   if (cm) insights.push(cm)
 
-  const daily = dailySpikeInsight(expenseTx, currentRef, currentTotal, fmt)
+  const daily = dailySpikeInsight(transactions, ref, currentTotal, fmt)
   if (daily) {
     insights.push(daily)
   } else {
@@ -478,7 +489,7 @@ export function buildExpenseInsights(
     if (categorySpike) insights.push(categorySpike)
   }
 
-  const avg = averageDailyInsight(currentTotal, currentRef, fmt)
+  const avg = averageDailyInsight(currentTotal, ref, fmt)
   if (avg) insights.push(avg)
 
   return insights
