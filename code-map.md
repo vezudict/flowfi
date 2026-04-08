@@ -13,6 +13,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/transaction-flow.ts` | `transactionEntryType` + `isExpenseForMetrics` / `isIncomeForMetrics` (persisted type, else category heuristic) | Analytics, insights, list badges — **must stay aligned** |
 | `src/lib/debug-transaction-flow.ts` | Optional `NEXT_PUBLIC_DEBUG_FLOWFI_TX=1` console trace for debit/credit through analytics/insights | Debugging only; no default logs |
 | `src/lib/spending-insights.ts` | Savings, expense, income insight bullets; category names in copy via **`getCategoryLabel`** | `FinancialInsights` |
+| `src/lib/ai-insights.ts` | **`generateAIInsights(summary)`** — calls OpenAI `gpt-4o-mini` with a pre-built `InsightsSummary`; returns `string[]`; server-only | `api/ai-insights` route |
 | `src/lib/recurring-transactions.ts` | Detect recurring debits; insight copy uses **`getCategoryLabel`** | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |
 | `src/lib/category-suggestion.ts` | **`CATEGORY_KEYWORDS`** map + **`detectCategory(description)`** (substring match, ordered buckets; dev-only `CATEGORY DETECTED` log); **`normalizeCategoryLabel`** / **`finalizeTransactionCategory`** (normalize + override **other** when keywords hit); **`resolveTransactionCategory`** (CSV: explicit plausible column unless other-like, then keywords); **`resolvePdfImportCategory`** (keywords then credit→`income`); **`suggestCategoryFromDescription`** for dashboard/edit UI; analytics helpers; shared by **`category-backfill`** | Dashboard add + edit, **CSV** (`csv-transactions` + `resolveTransactionCategory`), **PDF** text parse (`detectCategory` in `parse-transactions-from-text`, confirm via `resolvePdfImportCategory`), **POST/PATCH/import** (`finalizeTransactionCategory` in `sensitive-inputs`), **soft backfill** (`fixTransactionCategory`) |
@@ -159,6 +160,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 | `src/app/api/parse-pdf/route.ts` | PDF → extracted text / parse |
 | `src/app/api/profile/budget/route.ts` | PATCH monthly budget |
 | `src/app/api/profile/currency/route.ts` | PATCH preferred currency |
+| `src/app/api/ai-insights/route.ts` | POST generate/return AI insights; checks `ai_insights_cache` first; calls OpenAI on miss; caches result per user+month |
 
 **Flow:** Browser uses `authedFetch` + Bearer token → Route Handler uses `supabase-server` + RLS/user scoping + `rate-limit` + `sensitive-inputs` validation.
 

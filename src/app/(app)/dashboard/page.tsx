@@ -267,6 +267,8 @@ export default function DashboardPage() {
   const [entryType, setEntryType] = useState<'debit' | 'credit'>('debit')
   const [chartMode, setChartMode] = useState<'spending' | 'income'>('spending')
   const [submitting, setSubmitting] = useState(false)
+  const [aiInsights, setAiInsights] = useState<string[] | null>(null)
+  const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
   const categorySyncedFromSuggestion = useRef<string | null>(null)
 
   const suggestedCategory = useMemo(
@@ -423,6 +425,34 @@ export default function DashboardPage() {
     if (!user) return
     void loadDashboard()
   }, [user, loadDashboard])
+
+  useEffect(() => {
+    if (!user || transactions.length === 0) {
+      setAiInsights(null)
+      return
+    }
+    let cancelled = false
+    setAiInsightsLoading(true)
+    const analyticsSnapshot = computeAnalytics(transactions)
+    authedFetch('/api/ai-insights', {
+      method: 'POST',
+      json: { analytics: analyticsSnapshot, currency },
+    })
+      .then((res) => readAuthedJson<{ insights: string[] }>(res))
+      .then((result) => {
+        if (cancelled) return
+        setAiInsightsLoading(false)
+        if (result.ok && Array.isArray(result.data.insights)) {
+          setAiInsights(result.data.insights)
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setAiInsightsLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [transactions, currency, user])
 
   function handleTransactionSaved(updated: Transaction) {
     const normalized = normalizeTransaction(updated)
@@ -681,9 +711,14 @@ export default function DashboardPage() {
       ) : (
         <FinancialInsights
           savingsInsights={savingsInsights}
-          expenseInsights={expenseInsights}
+          expenseInsights={
+            aiInsights
+              ? aiInsights.map((text, i) => ({ id: `ai-${i}`, text }))
+              : expenseInsights
+          }
           incomeInsights={incomeInsights}
           recurringInsights={recurringInsights}
+          aiLoading={aiInsightsLoading}
         />
       )}
 

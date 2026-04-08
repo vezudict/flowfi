@@ -7,6 +7,7 @@ type FinancialInsightsProps = {
   expenseInsights: SpendingInsight[]
   incomeInsights: SpendingInsight[]
   recurringInsights: SpendingInsight[]
+  aiLoading?: boolean
 }
 
 function InsightSection({
@@ -40,6 +41,7 @@ export function FinancialInsights({
   expenseInsights,
   incomeInsights,
   recurringInsights,
+  aiLoading = false,
 }: FinancialInsightsProps) {
   const total =
     savingsInsights.length +
@@ -79,7 +81,24 @@ export function FinancialInsights({
         ) : (
           <div className="mt-2">
             <InsightSection title="Savings" insights={savingsInsights} />
-            <InsightSection title="Spending" insights={expenseInsights} />
+            {aiLoading ? (
+              <div className="mt-5">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                  Spending
+                </h3>
+                <ul className="mt-3 space-y-2.5">
+                  {[80, 64, 72].map((w) => (
+                    <li key={w}>
+                      <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+                        <div className={`h-3.5 w-${w} animate-pulse rounded bg-zinc-200 dark:bg-zinc-700`} />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : (
+              <InsightSection title="Spending" insights={expenseInsights} />
+            )}
             <InsightSection title="Income" insights={incomeInsights} />
             <InsightSection title="Recurring" insights={recurringInsights} />
           </div>
