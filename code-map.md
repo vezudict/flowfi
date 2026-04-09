@@ -13,7 +13,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/transaction-flow.ts` | `transactionEntryType` + `isExpenseForMetrics` / `isIncomeForMetrics` (persisted type, else category heuristic) | Analytics, insights, list badges — **must stay aligned** |
 | `src/lib/debug-transaction-flow.ts` | Optional `NEXT_PUBLIC_DEBUG_FLOWFI_TX=1` console trace for debit/credit through analytics/insights | Debugging only; no default logs |
 | `src/lib/spending-insights.ts` | Savings, expense, income insight bullets; category names in copy via **`getCategoryLabel`** | `FinancialInsights` |
-| `src/lib/ai-insights.ts` | **`generateAIInsights(summary)`** — calls OpenAI `gpt-4o-mini` with a pre-built `InsightsSummary`; returns `string[]`; server-only | `api/ai-insights` route |
+| `src/lib/ai-insights.ts` | **`generateAIInsights(summary)`** — calls OpenAI `gpt-4o-mini` with a pre-built `InsightsSummary`; returns **`AIInsight[]`** (structured: `title`, `description`, `type: spending\|income\|alert\|opportunity`, `priority: high\|medium\|low`); max 6 insights; server-only | `api/ai-insights` route |
 | `src/lib/recurring-transactions.ts` | Detect recurring debits; insight copy uses **`getCategoryLabel`** | Dashboard insights, row badges |
 | `src/lib/financial-health-score.ts` | Composite score from ledger + budget | `FinancialHealthCard` |
 | `src/lib/category-suggestion.ts` | **`CATEGORY_KEYWORDS`** map + **`detectCategory(description)`** (substring match, ordered buckets; dev-only `CATEGORY DETECTED` log); **`normalizeCategoryLabel`** / **`finalizeTransactionCategory`** (normalize + override **other** when keywords hit); **`resolveTransactionCategory`** (CSV: explicit plausible column unless other-like, then keywords); **`resolvePdfImportCategory`** (keywords then credit→`income`); **`suggestCategoryFromDescription`** for dashboard/edit UI; analytics helpers; shared by **`category-backfill`** | Dashboard add + edit, **CSV** (`csv-transactions` + `resolveTransactionCategory`), **PDF** text parse (`detectCategory` in `parse-transactions-from-text`, confirm via `resolvePdfImportCategory`), **POST/PATCH/import** (`finalizeTransactionCategory` in `sensitive-inputs`), **soft backfill** (`fixTransactionCategory`) |
@@ -86,7 +86,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/components/dashboard/NetSavingsCard.tsx` | Net savings (income − expenses) |
 | `src/components/dashboard/MonthlyBudgetCard.tsx` | Budget vs spent |
 | `src/components/dashboard/FinancialHealthCard.tsx` | Health score UI |
-| `src/components/dashboard/FinancialInsights.tsx` | Sectioned insight lists |
+| `src/components/dashboard/FinancialInsights.tsx` | Sectioned insight lists. AI section renders **`AIInsightCard`** per `AIInsight`: emoji type icon (📉💰⚠️🚀) + type pill + priority badge (high→red, medium→amber, low→green) + title + description + hover glow keyed on type. Skeleton loader while `aiLoading`. Falls back to rule-based `expenseInsights` if no AI data. |
 | `src/components/dashboard/CategoryPieChart.tsx` | Recharts donut; optional **`formatSegmentLabel`** for legend/tooltip (dashboard → **`getCategoryLabel`**) |
 | `src/components/dashboard/SpendingBarChart.tsx` | Recharts bar (daily series) |
 | `src/components/dashboard/TransactionEditModal.tsx` | Edit transaction |
@@ -160,7 +160,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 | `src/app/api/parse-pdf/route.ts` | PDF → extracted text / parse |
 | `src/app/api/profile/budget/route.ts` | PATCH monthly budget |
 | `src/app/api/profile/currency/route.ts` | PATCH preferred currency |
-| `src/app/api/ai-insights/route.ts` | POST JSON body **`{ analytics, currency }`** (required). **Flow:** dashboard **`useEffect`** → this route → read **`ai_insights_cache`** → on miss **`generateAIInsights`** (OpenAI) → upsert cache |
+| `src/app/api/ai-insights/route.ts` | POST JSON body **`{ analytics, currency }`** (required). **Flow:** dashboard **`useEffect`** → this route → read **`ai_insights_cache`** (validates structured `AIInsight[]`; skips legacy `string[]` cache) → on miss **`generateAIInsights`** (OpenAI) → upsert cache |
 
 **Flow:** Browser uses `authedFetch` + Bearer token → Route Handler uses `supabase-server` + RLS/user scoping + `rate-limit` + `sensitive-inputs` validation.
 
@@ -188,7 +188,7 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 - **Logic:** `transaction-analytics.ts`, `spending-insights.ts`, `recurring-transactions.ts`, `financial-health-score.ts`, `profile-budget.ts`, `ai-insights.ts` (server)
 - **UI:** Dashboard page + dashboard components (cards, charts, insights)
 - **Profiles & currency:** `loadDashboard` → **`fetchProfileBudget`**; **`CurrencyProvider`** → **`fetchPreferredCurrency`** — both use **`fetchProfilePreferences`** (`profiles`: `monthly_budget`, `preferred_currency`, keyed by `id`). **`PROFILE FETCH ERROR`** logged on Supabase errors.
-- **AI insights:** `dashboard/page.tsx` **`useEffect`** (when `transactions` non-empty, auth ready, session token present) → **`POST /api/ai-insights`** → **`ai_insights_cache`** → **`generateAIInsights`** (OpenAI) on cache miss
+- **AI insights:** `dashboard/page.tsx` **`useEffect`** (when `transactions` non-empty, auth ready, session token present) → **`POST /api/ai-insights`** → **`ai_insights_cache`** → **`generateAIInsights`** (OpenAI) on cache miss. Returns **`AIInsight[]`** (title + description + type + priority). Rendered as `AIInsightSection` in `FinancialInsights` with type/priority pill badges; falls back to rule-based `expenseInsights` if AI not loaded.
 
 ### Tools (tax, rent vs buy, credit, decision)
 

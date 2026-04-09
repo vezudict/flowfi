@@ -38,6 +38,7 @@ import {
   buildSavingsInsights,
 } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
+import type { AIInsight } from '@/lib/ai-insights'
 import { transactionEntryType } from '@/lib/transaction-flow'
 import {
   countActiveFilters,
@@ -267,7 +268,7 @@ export default function DashboardPage() {
   const [entryType, setEntryType] = useState<'debit' | 'credit'>('debit')
   const [chartMode, setChartMode] = useState<'spending' | 'income'>('spending')
   const [submitting, setSubmitting] = useState(false)
-  const [aiInsights, setAiInsights] = useState<string[] | null>(null)
+  const [aiInsights, setAiInsights] = useState<AIInsight[] | null>(null)
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
   const categorySyncedFromSuggestion = useRef<string | null>(null)
 
@@ -456,7 +457,7 @@ export default function DashboardPage() {
           'insights' in data &&
           Array.isArray((data as { insights: unknown }).insights)
         ) {
-          setAiInsights((data as { insights: string[] }).insights)
+          setAiInsights((data as { insights: AIInsight[] }).insights)
         }
       } catch (err) {
         console.error('AI INSIGHTS ERROR', err)
@@ -727,13 +728,10 @@ export default function DashboardPage() {
       ) : (
         <FinancialInsights
           savingsInsights={savingsInsights}
-          expenseInsights={
-            aiInsights
-              ? aiInsights.map((text, i) => ({ id: `ai-${i}`, text }))
-              : expenseInsights
-          }
+          expenseInsights={expenseInsights}
           incomeInsights={incomeInsights}
           recurringInsights={recurringInsights}
+          aiInsights={aiInsights}
           aiLoading={aiInsightsLoading}
         />
       )}

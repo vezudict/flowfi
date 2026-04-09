@@ -1,5 +1,6 @@
 import { Lightbulb } from 'lucide-react'
 import Link from 'next/link'
+import type { AIInsight } from '@/lib/ai-insights'
 import type { SpendingInsight } from '@/lib/spending-insights'
 
 type FinancialInsightsProps = {
@@ -7,6 +8,7 @@ type FinancialInsightsProps = {
   expenseInsights: SpendingInsight[]
   incomeInsights: SpendingInsight[]
   recurringInsights: SpendingInsight[]
+  aiInsights?: AIInsight[] | null
   aiLoading?: boolean
 }
 
@@ -36,11 +38,151 @@ function InsightSection({
   )
 }
 
+// ─── AI Insight card constants ────────────────────────────────────────────────
+
+const TYPE_ICONS: Record<AIInsight['type'], string> = {
+  spending: '📉',
+  income: '💰',
+  alert: '⚠️',
+  opportunity: '🚀',
+}
+
+const TYPE_LABELS: Record<AIInsight['type'], string> = {
+  spending: 'Spending',
+  income: 'Income',
+  alert: 'Alert',
+  opportunity: 'Opportunity',
+}
+
+const TYPE_STYLES: Record<AIInsight['type'], string> = {
+  spending:
+    'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:border-amber-500/25',
+  income:
+    'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/25',
+  alert:
+    'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400 dark:border-red-500/25',
+  opportunity:
+    'bg-blue-500/10 text-blue-600 border-blue-500/20 dark:text-blue-400 dark:border-blue-500/25',
+}
+
+// HIGH → red  |  MEDIUM → amber/yellow  |  LOW → green
+const PRIORITY_STYLES: Record<AIInsight['priority'], string> = {
+  high: 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400 dark:border-red-500/25',
+  medium:
+    'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:border-amber-500/25',
+  low: 'bg-emerald-500/10 text-emerald-600 border-emerald-500/20 dark:text-emerald-400 dark:border-emerald-500/25',
+}
+
+const PRIORITY_LABELS: Record<AIInsight['priority'], string> = {
+  high: 'High',
+  medium: 'Medium',
+  low: 'Low',
+}
+
+// Hover glow tint keyed on type
+const CARD_GLOW: Record<AIInsight['type'], string> = {
+  spending: 'hover:border-amber-300/50 hover:shadow-amber-100/60 dark:hover:border-amber-600/30 dark:hover:shadow-amber-900/20',
+  income: 'hover:border-emerald-300/50 hover:shadow-emerald-100/60 dark:hover:border-emerald-600/30 dark:hover:shadow-emerald-900/20',
+  alert: 'hover:border-red-300/50 hover:shadow-red-100/60 dark:hover:border-red-600/30 dark:hover:shadow-red-900/20',
+  opportunity: 'hover:border-blue-300/50 hover:shadow-blue-100/60 dark:hover:border-blue-600/30 dark:hover:shadow-blue-900/20',
+}
+
+// ─── AIInsightCard ────────────────────────────────────────────────────────────
+
+function AIInsightCard({ insight }: { insight: AIInsight }) {
+  return (
+    <li>
+      <div
+        className={`group rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950/80 ${CARD_GLOW[insight.type]}`}
+      >
+        {/* Top row: icon + type badge + priority badge */}
+        <div className="flex items-center gap-2">
+          <span className="text-base leading-none" role="img" aria-label={TYPE_LABELS[insight.type]}>
+            {TYPE_ICONS[insight.type]}
+          </span>
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${TYPE_STYLES[insight.type]}`}
+          >
+            {TYPE_LABELS[insight.type]}
+          </span>
+          <span
+            className={`ml-auto inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${PRIORITY_STYLES[insight.priority]}`}
+          >
+            {PRIORITY_LABELS[insight.priority]}
+          </span>
+        </div>
+
+        {/* Title */}
+        <p className="mt-2.5 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
+          {insight.title}
+        </p>
+
+        {/* Description */}
+        <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+          {insight.description}
+        </p>
+      </div>
+    </li>
+  )
+}
+
+// ─── AIInsightSection ─────────────────────────────────────────────────────────
+
+function AIInsightSection({ insights }: { insights: AIInsight[] }) {
+  if (insights.length === 0) return null
+  return (
+    <div className="mt-5">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        AI Insights
+      </h3>
+      <ul className="mt-3 space-y-2.5" role="list">
+        {insights.map((insight, i) => (
+          <AIInsightCard key={i} insight={insight} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ─── Skeleton loader ──────────────────────────────────────────────────────────
+
+function AIInsightSkeleton() {
+  return (
+    <div className="mt-5">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        AI Insights
+      </h3>
+      <ul className="mt-3 space-y-2.5">
+        {[1, 2, 3].map((n) => (
+          <li key={n}>
+            <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+              {/* Badge row skeleton */}
+              <div className="flex gap-2">
+                <div className="h-5 w-5 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+                <div className="ml-auto h-5 w-12 animate-pulse rounded-full bg-zinc-200 dark:bg-zinc-700" />
+              </div>
+              {/* Title skeleton */}
+              <div className="mt-2.5 h-3.5 w-3/4 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
+              {/* Description skeleton */}
+              <div className="mt-2 h-3 w-full animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+              <div className="mt-1.5 h-3 w-2/3 animate-pulse rounded bg-zinc-100 dark:bg-zinc-800" />
+            </div>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+// ─── Main export ──────────────────────────────────────────────────────────────
+
 export function FinancialInsights({
   savingsInsights,
   expenseInsights,
   incomeInsights,
   recurringInsights,
+  aiInsights,
   aiLoading = false,
 }: FinancialInsightsProps) {
   const total =
@@ -57,9 +199,10 @@ export function FinancialInsights({
           Financial insights
         </h2>
         <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Spending uses debits only (category “income” excluded). Income uses credits. Savings = income
+          Spending uses debits only (category "income" excluded). Income uses credits. Savings = income
           minus expenses.
         </p>
+
         {total === 0 ? (
           <div className="mx-auto mt-6 flex max-w-sm flex-col items-center justify-center px-4 py-8 text-center">
             <div className="flex h-11 w-11 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
@@ -69,7 +212,8 @@ export function FinancialInsights({
               No insights yet
             </p>
             <p className="mt-2 text-sm leading-relaxed text-zinc-500/90 dark:text-zinc-400/85">
-              Add debits for spending and credits for income to see savings, spending, and income insights.
+              Add debits for spending and credits for income to see savings, spending, and income
+              insights.
             </p>
             <Link
               href="#add-transaction"
@@ -81,24 +225,16 @@ export function FinancialInsights({
         ) : (
           <div className="mt-2">
             <InsightSection title="Savings" insights={savingsInsights} />
+
+            {/* AI insights: skeleton → structured cards → rule-based fallback */}
             {aiLoading ? (
-              <div className="mt-5">
-                <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
-                  Spending
-                </h3>
-                <ul className="mt-3 space-y-2.5">
-                  {[80, 64, 72].map((w) => (
-                    <li key={w}>
-                      <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
-                        <div className={`h-3.5 w-${w} animate-pulse rounded bg-zinc-200 dark:bg-zinc-700`} />
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+              <AIInsightSkeleton />
+            ) : aiInsights && aiInsights.length > 0 ? (
+              <AIInsightSection insights={aiInsights} />
             ) : (
               <InsightSection title="Spending" insights={expenseInsights} />
             )}
+
             <InsightSection title="Income" insights={incomeInsights} />
             <InsightSection title="Recurring" insights={recurringInsights} />
           </div>

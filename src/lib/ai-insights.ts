@@ -12,26 +12,42 @@ export type InsightsSummary = {
   currency: string
 }
 
+export type AIInsight = {
+  title: string
+  description: string
+  type: 'spending' | 'income' | 'alert' | 'opportunity'
+  priority: 'high' | 'medium' | 'low'
+}
+
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 const MODEL = 'gpt-4o-mini'
 
-export async function generateAIInsights(summary: InsightsSummary): Promise<string[]> {
+export async function generateAIInsights(summary: InsightsSummary): Promise<AIInsight[]> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
-  const prompt = `You are a financial analyst AI.
+  const prompt = `Analyze this user's monthly financial data and return concise, actionable insights.
 
-Given this user's financial data for the current month:
+Financial data:
 ${JSON.stringify(summary, null, 2)}
 
-Generate 3-5 concise insights. Requirements:
-- Focus on spending patterns, unusual activity, category dominance, and financial health
-- Keep tone professional, slightly conversational
-- Each insight must be 1-2 sentences max
-- Avoid generic advice — be specific with numbers from the data
+Rules:
+- Max 6 insights
+- Must include at least 1 high priority insight
+- Avoid generic statements — be specific with numbers from the data
+- Focus on actionable advice
+- Use simple human tone
 - Currency code in the data is the user's preferred currency
 
-Return ONLY valid JSON in this exact shape: {"insights": string[]}`
+Return ONLY a valid JSON array in this exact shape:
+[
+  {
+    "title": "Short headline",
+    "description": "Clear actionable insight with specific numbers",
+    "type": "spending | income | alert | opportunity",
+    "priority": "high | medium | low"
+  }
+]`
 
   const response = await fetch(OPENAI_CHAT_URL, {
     method: 'POST',
@@ -44,7 +60,11 @@ Return ONLY valid JSON in this exact shape: {"insights": string[]}`
       temperature: 0.3,
       response_format: { type: 'json_object' },
       messages: [
-        { role: 'system', content: 'You are a financial analyst AI. Return only valid JSON.' },
+        {
+          role: 'system',
+          content:
+            'You are a fintech financial assistant. Analyze the user\'s monthly analytics and return concise, actionable insights. Return ONLY valid JSON with a top-level "insights" key containing the array.',
+        },
         { role: 'user', content: prompt },
       ],
     }),
@@ -63,16 +83,34 @@ Return ONLY valid JSON in this exact shape: {"insights": string[]}`
   if (!content) throw new Error('Empty OpenAI response')
 
   const parsed = JSON.parse(content) as unknown
-  if (
-    !parsed ||
-    typeof parsed !== 'object' ||
-    !('insights' in parsed) ||
-    !Array.isArray((parsed as { insights: unknown }).insights)
+
+  // Support both top-level array and wrapped {"insights": [...]}
+  let items: unknown[]
+  if (Array.isArray(parsed)) {
+    items = parsed
+  } else if (
+    parsed &&
+    typeof parsed === 'object' &&
+    'insights' in parsed &&
+    Array.isArray((parsed as { insights: unknown }).insights)
   ) {
+    items = (parsed as { insights: unknown[] }).insights
+  } else {
     throw new Error('Unexpected OpenAI response shape')
   }
 
-  return (parsed as { insights: unknown[] }).insights
-    .filter((s): s is string => typeof s === 'string')
-    .slice(0, 5)
+  return items
+    .filter(isAIInsight)
+    .slice(0, 6)
+}
+
+function isAIInsight(item: unknown): item is AIInsight {
+  if (!item || typeof item !== 'object') return false
+  const o = item as Record<string, unknown>
+  return (
+    typeof o.title === 'string' &&
+    typeof o.description === 'string' &&
+    (o.type === 'spending' || o.type === 'income' || o.type === 'alert' || o.type === 'opportunity') &&
+    (o.priority === 'high' || o.priority === 'medium' || o.priority === 'low')
+  )
 }

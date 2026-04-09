@@ -4,7 +4,7 @@ import {
   PUBLIC_ERROR_TOO_MANY_REQUESTS,
   PUBLIC_ERROR_UNAUTHORIZED,
 } from '@/lib/api-public-error'
-import { generateAIInsights, type InsightsSummary } from '@/lib/ai-insights'
+import { generateAIInsights, type AIInsight, type InsightsSummary } from '@/lib/ai-insights'
 import type { AnalyticsBundle } from '@/lib/transaction-analytics'
 import {
   buildRateLimitKey,
@@ -37,6 +37,16 @@ function buildSummary(analytics: AnalyticsBundle, currency: string): InsightsSum
     categoryBreakdown,
     currency,
   }
+}
+
+function isAIInsightArray(items: unknown[]): items is AIInsight[] {
+  return items.every(
+    (item) =>
+      item !== null &&
+      typeof item === 'object' &&
+      typeof (item as Record<string, unknown>).title === 'string' &&
+      typeof (item as Record<string, unknown>).description === 'string',
+  )
 }
 
 export async function POST(request: Request) {
@@ -80,8 +90,12 @@ export async function POST(request: Request) {
       .maybeSingle()
 
     if (cached?.insights) {
-      const insights = Array.isArray(cached.insights) ? cached.insights : []
-      return NextResponse.json({ insights, cached: true })
+      const raw = cached.insights
+      // Only serve cache if it contains structured AIInsight objects (not legacy string[])
+      const insights = Array.isArray(raw) && raw.length > 0 && isAIInsightArray(raw) ? raw : null
+      if (insights) {
+        return NextResponse.json({ insights, cached: true })
+      }
     }
 
     // Generate fresh
