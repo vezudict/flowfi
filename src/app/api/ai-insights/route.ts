@@ -99,7 +99,9 @@ export async function POST(request: Request) {
 
     // Generate fresh
     const summary = buildSummary(analytics, currency)
-    const insights = await generateAIInsights(summary)
+    const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    console.log('🔥 AI MODEL USED:', MODEL)
+    const insights = await generateAIInsights(summary, MODEL)
 
     // Upsert cache
     await supabase.from('ai_insights_cache').upsert(

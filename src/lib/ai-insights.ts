@@ -21,8 +21,6 @@ export type AIInsight = {
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 
-const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
-
 function rateLimitFallbackInsights(): AIInsight[] {
   return [
     {
@@ -41,7 +39,10 @@ function rateLimitFallbackInsights(): AIInsight[] {
   ]
 }
 
-export async function generateAIInsights(summary: InsightsSummary): Promise<AIInsight[]> {
+export async function generateAIInsights(
+  summary: InsightsSummary,
+  openaiModel: string = process.env.OPENAI_MODEL || 'gpt-4o-mini',
+): Promise<AIInsight[]> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY not configured')
 
@@ -68,8 +69,6 @@ Return ONLY a valid JSON array in this exact shape:
   }
 ]`
 
-  console.log('AI MODEL USED:', MODEL)
-
   try {
     const response = await fetch(OPENAI_CHAT_URL, {
       method: 'POST',
@@ -78,7 +77,7 @@ Return ONLY a valid JSON array in this exact shape:
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: MODEL,
+        model: openaiModel,
         temperature: 0.4,
         messages: [
           {
