@@ -39,6 +39,7 @@ import {
 } from '@/lib/spending-insights'
 import { computeAnalytics, normalizeAmount } from '@/lib/transaction-analytics'
 import type { AIInsight } from '@/lib/ai-insights'
+import { detectAnomalies, type Anomaly } from '@/lib/anomaly-detection'
 import { transactionEntryType } from '@/lib/transaction-flow'
 import {
   countActiveFilters,
@@ -269,6 +270,7 @@ export default function DashboardPage() {
   const [chartMode, setChartMode] = useState<'spending' | 'income'>('spending')
   const [submitting, setSubmitting] = useState(false)
   const [aiInsights, setAiInsights] = useState<AIInsight[] | null>(null)
+  const [aiAnomalies, setAiAnomalies] = useState<Anomaly[] | null>(null)
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiLastUpdated, setAiLastUpdated] = useState<Date | null>(null)
@@ -441,12 +443,14 @@ export default function DashboardPage() {
 
     try {
       const analyticsSnapshot = computeAnalytics(transactions)
+      const anomalies = detectAnomalies(transactions, analyticsSnapshot, currency)
 
       console.log('📦 Sending analytics:', analyticsSnapshot)
+      console.log('🔍 Detected anomalies:', anomalies)
 
       const res = await authedFetch('/api/ai-insights', {
         method: 'POST',
-        json: { analytics: analyticsSnapshot, currency },
+        json: { analytics: analyticsSnapshot, currency, anomalies },
       })
 
       console.log('📡 API response status:', res.status)
@@ -463,6 +467,7 @@ export default function DashboardPage() {
         Array.isArray((data as { insights: unknown }).insights)
       ) {
         setAiInsights((data as { insights: AIInsight[] }).insights)
+        setAiAnomalies(anomalies)
         setAiLastUpdated(new Date())
       }
     } catch (err) {
@@ -477,6 +482,8 @@ export default function DashboardPage() {
     setAiEnabled(next)
     if (next && !aiInsights) {
       await fetchAIInsights()
+    } else if (!next) {
+      setAiAnomalies(null)
     }
   }
 
@@ -790,6 +797,7 @@ export default function DashboardPage() {
             incomeInsights={incomeInsights}
             recurringInsights={recurringInsights}
             aiInsights={aiEnabled ? aiInsights : null}
+            aiAnomalies={aiEnabled ? aiAnomalies : null}
             aiLoading={aiEnabled ? aiInsightsLoading : false}
           />
         </div>

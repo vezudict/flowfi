@@ -223,16 +223,37 @@ export function parsePdfStatementDateToIso(raw: string): string | null {
     return d.toISOString()
   }
 
-  // DD-MMM-YYYY (legacy)
+  // DD-MMM-YYYY (e.g. 15-Jan-2024)
   const legacy = s.match(/^(\d{1,2})-([A-Za-z]{3})-(\d{4})$/)
-  if (!legacy) return null
-  const day = Number(legacy[1])
-  const mi = MONTH_INDEX[legacy[2].toLowerCase()]
-  const year = Number(legacy[3])
-  if (mi === undefined || !Number.isFinite(day) || !Number.isFinite(year)) return null
-  const d = new Date(year, mi, day, 12, 0, 0, 0)
-  if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
-  return d.toISOString()
+  if (legacy) {
+    const day = Number(legacy[1])
+    const mi = MONTH_INDEX[legacy[2].toLowerCase()]
+    const year = Number(legacy[3])
+    if (mi === undefined || !Number.isFinite(day) || !Number.isFinite(year)) return null
+    const d = new Date(year, mi, day, 12, 0, 0, 0)
+    if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
+    return d.toISOString()
+  }
+
+  // DD-MM-YYYY (e.g. 15-01-2024)
+  const dmy = s.match(/^(\d{1,2})-(\d{2})-(\d{4})$/)
+  if (dmy) {
+    const day = Number(dmy[1]), mi = Number(dmy[2]) - 1, year = Number(dmy[3])
+    const d = new Date(year, mi, day, 12, 0, 0, 0)
+    if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
+    return d.toISOString()
+  }
+
+  // DD/MM/YYYY (e.g. 15/01/2024)
+  const dmySlash = s.match(/^(\d{1,2})\/(\d{2})\/(\d{4})$/)
+  if (dmySlash) {
+    const day = Number(dmySlash[1]), mi = Number(dmySlash[2]) - 1, year = Number(dmySlash[3])
+    const d = new Date(year, mi, day, 12, 0, 0, 0)
+    if (d.getFullYear() !== year || d.getMonth() !== mi || d.getDate() !== day) return null
+    return d.toISOString()
+  }
+
+  return null
 }
 
 export function formatTodayPdfStatementDate(): string {

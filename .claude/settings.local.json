@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Skill(shadcn-ui)"
+      "Skill(shadcn-ui)",
+      "Bash(npx tsc:*)",
+      "Bash(npx:*)",
+      "Bash(npm test:*)"
     ]
   }
 }

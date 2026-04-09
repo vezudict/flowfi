@@ -1,12 +1,18 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Loader2, X } from 'lucide-react'
 import { getCategoryLabel, getCategoryStyleClass } from '@/lib/category-display'
 import {
   isOtherLikeCategoryLabel,
   suggestCategoryFromDescription,
 } from '@/lib/category-suggestion'
+import {
+  getAiCategoryCache,
+  getCategoryFromMemory,
+  setAiCategoryCache,
+  setCategoryMemory,
+} from '@/lib/category-memory'
 import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
 import { transactionEntryType, type EntryType } from '@/lib/transaction-flow'
@@ -33,11 +39,72 @@ export function TransactionEditModal({
   const [entryType, setEntryType] = useState<EntryType>('debit')
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [aiSuggestion, setAiSuggestion] = useState<string | null>(null)
+  const aiAbortRef = useRef<AbortController | null>(null)
 
   const suggestedCategory = useMemo(
     () => suggestCategoryFromDescription(description),
     [description],
   )
+
+  // AI fallback: when description has no rule match, try memory cache then API
+  useEffect(() => {
+    if (!transaction) return
+    if (suggestedCategory) {
+      setAiSuggestion(null)
+      return
+    }
+    const desc = description.trim()
+    if (!desc) {
+      setAiSuggestion(null)
+      return
+    }
+
+    // Check localStorage AI cache first (no API call)
+    const cached = getAiCategoryCache(desc)
+    if (cached && cached !== 'other') {
+      setAiSuggestion(cached)
+      return
+    }
+
+    // Check user memory (also no API call)
+    const remembered = getCategoryFromMemory(desc)
+    if (remembered && remembered !== 'other') {
+      setAiSuggestion(null) // memory is already applied via backfill; don't show duplicate hint
+      return
+    }
+
+    // Debounce: wait 600ms after typing stops before calling AI
+    const timeout = setTimeout(async () => {
+      aiAbortRef.current?.abort()
+      const ctrl = new AbortController()
+      aiAbortRef.current = ctrl
+
+      try {
+        const res = await authedFetch('/api/categorize', {
+          method: 'POST',
+          json: { description: desc },
+          signal: ctrl.signal,
+        })
+        if (!res.ok) return
+        const data = (await res.json()) as { category?: string; confidence?: number }
+        const cat = data.category
+        if (cat && cat !== 'other') {
+          setAiCategoryCache(desc, cat)
+          setAiSuggestion(cat)
+        } else {
+          setAiSuggestion(null)
+        }
+      } catch {
+        // Aborted or network error — ignore
+      }
+    }, 600)
+
+    return () => {
+      clearTimeout(timeout)
+      aiAbortRef.current?.abort()
+    }
+  }, [description, suggestedCategory, transaction])
 
   useEffect(() => {
     if (!transaction) return
@@ -46,6 +113,7 @@ export function TransactionEditModal({
     setDescription(transaction.description ?? '')
     setEntryType(transactionEntryType(transaction))
     setFormError(null)
+    setAiSuggestion(null)
   }, [transaction])
 
   useEffect(() => {
@@ -98,6 +166,8 @@ export function TransactionEditModal({
       setFormError(result.message)
       return
     }
+    // Persist user's category choice so future transactions with same description auto-categorize
+    if (desc) setCategoryMemory(desc, cat)
     onSaved(result.data.data)
     toast.success('Transaction updated')
     onClose()
@@ -215,9 +285,25 @@ export function TransactionEditModal({
             {suggestedCategory ? (
               <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
                 Suggested from description:{' '}
-                <span className={`font-medium ${getCategoryStyleClass(suggestedCategory)}`}>
+                <button
+                  type="button"
+                  onClick={() => setCategory(suggestedCategory)}
+                  className={`font-medium underline-offset-2 hover:underline ${getCategoryStyleClass(suggestedCategory)}`}
+                >
                   {getCategoryLabel(suggestedCategory)}
-                </span>
+                </button>
+              </p>
+            ) : aiSuggestion ? (
+              <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
+                AI suggested:{' '}
+                <button
+                  type="button"
+                  onClick={() => setCategory(aiSuggestion)}
+                  className={`font-medium underline-offset-2 hover:underline ${getCategoryStyleClass(aiSuggestion)}`}
+                >
+                  {getCategoryLabel(aiSuggestion)}
+                </button>
+                <span className="ml-1 text-zinc-400 dark:text-zinc-500">(click to apply)</span>
               </p>
             ) : null}
           </div>

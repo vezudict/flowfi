@@ -1,6 +1,7 @@
 import { Lightbulb } from 'lucide-react'
 import Link from 'next/link'
 import type { AIInsight } from '@/lib/ai-insights'
+import type { Anomaly } from '@/lib/anomaly-detection'
 import type { SpendingInsight } from '@/lib/spending-insights'
 
 type FinancialInsightsProps = {
@@ -9,6 +10,7 @@ type FinancialInsightsProps = {
   incomeInsights: SpendingInsight[]
   recurringInsights: SpendingInsight[]
   aiInsights?: AIInsight[] | null
+  aiAnomalies?: Anomaly[] | null
   aiLoading?: boolean
 }
 
@@ -144,6 +146,67 @@ function AIInsightSection({ insights }: { insights: AIInsight[] }) {
   )
 }
 
+// ─── Anomaly cards ────────────────────────────────────────────────────────────
+
+const SEVERITY_STYLES: Record<Anomaly['severity'], string> = {
+  high: 'bg-red-500/10 text-red-600 border-red-500/20 dark:text-red-400 dark:border-red-500/25',
+  medium: 'bg-amber-500/10 text-amber-600 border-amber-500/20 dark:text-amber-400 dark:border-amber-500/25',
+}
+
+const ANOMALY_TYPE_LABELS: Record<Anomaly['type'], string> = {
+  spike: 'Spending Spike',
+  category: 'Dominant Category',
+  income: 'Income Drop',
+  large: 'Large Expense',
+}
+
+function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
+  return (
+    <li>
+      <div
+        className={`rounded-xl border px-4 py-3.5 shadow-sm ${
+          anomaly.severity === 'high'
+            ? 'border-red-200/70 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
+            : 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+        }`}
+      >
+        <div className="flex items-center gap-2">
+          <span className="text-base leading-none" role="img" aria-label="anomaly">⚠️</span>
+          <span
+            className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${SEVERITY_STYLES[anomaly.severity]}`}
+          >
+            {ANOMALY_TYPE_LABELS[anomaly.type]}
+          </span>
+          <span
+            className={`ml-auto inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${SEVERITY_STYLES[anomaly.severity]}`}
+          >
+            {anomaly.severity === 'high' ? 'High' : 'Medium'}
+          </span>
+        </div>
+        <p className="mt-2 text-sm leading-relaxed text-zinc-700 dark:text-zinc-300">
+          {anomaly.message}
+        </p>
+      </div>
+    </li>
+  )
+}
+
+function AnomalySection({ anomalies }: { anomalies: Anomaly[] }) {
+  if (anomalies.length === 0) return null
+  return (
+    <div className="mt-5">
+      <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+        Anomalies
+      </h3>
+      <ul className="mt-3 space-y-2.5" role="list">
+        {anomalies.map((anomaly, i) => (
+          <AnomalyCard key={i} anomaly={anomaly} />
+        ))}
+      </ul>
+    </div>
+  )
+}
+
 // ─── Skeleton loader ──────────────────────────────────────────────────────────
 
 function AIInsightSkeleton() {
@@ -183,6 +246,7 @@ export function FinancialInsights({
   incomeInsights,
   recurringInsights,
   aiInsights,
+  aiAnomalies,
   aiLoading = false,
 }: FinancialInsightsProps) {
   const total =
@@ -225,6 +289,13 @@ export function FinancialInsights({
         ) : (
           <div className="mt-2">
             <InsightSection title="Savings" insights={savingsInsights} />
+
+            {/* Anomalies: shown when AI is enabled and anomalies detected */}
+            {!aiLoading && aiAnomalies && aiAnomalies.length > 0 && (
+              <div className="animate-fade-in">
+                <AnomalySection anomalies={aiAnomalies} />
+              </div>
+            )}
 
             {/* AI insights: skeleton → structured cards → rule-based fallback */}
             {aiLoading ? (

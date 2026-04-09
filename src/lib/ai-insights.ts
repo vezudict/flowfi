@@ -3,6 +3,8 @@
  * Called server-side only (Route Handler). Never import in client components.
  */
 
+import type { Anomaly } from '@/lib/anomaly-detection'
+
 export type InsightsSummary = {
   totalSpending: number
   totalIncome: number
@@ -17,6 +19,8 @@ export type InsightsSummary = {
   avgDailySpend: number
   previousMonthIncome: number
   currency: string
+  /** Client-detected anomalies injected into AI context */
+  anomalies?: Anomaly[]
 }
 
 export type AIInsight = {
@@ -97,6 +101,7 @@ function buildPrompt(summary: InsightsSummary): string {
     avg_daily_spend: summary.avgDailySpend,
     previous_month_income: summary.previousMonthIncome,
     currency: summary.currency,
+    anomalies: summary.anomalies ?? [],
   }
 
   if (isDev) {
@@ -109,6 +114,11 @@ function buildPrompt(summary: InsightsSummary): string {
       ? `\nREQUIRED: One insight MUST specifically address the spending spike(s) in unusual_spikes — cite the exact date(s) and amount(s).`
       : ''
 
+  const anomalyInstruction =
+    ctx.anomalies.length > 0
+      ? `\nDETECTED ANOMALIES (reference these in your insights where relevant — do not repeat them verbatim, but build on them):\n${ctx.anomalies.map((a) => `- [${a.type.toUpperCase()}] ${a.message}`).join('\n')}`
+      : ''
+
   return `You are a premium fintech intelligence engine.
 
 Rules:
@@ -116,7 +126,7 @@ Rules:
 - NO external benchmarks. NEVER reference "typical users", "average income bracket", or anything not in the data
 - ONLY use numbers provided in the financial data below
 - Every insight MUST include a measurable impact expressed as a currency amount or percentage
-- Focus on decisions, not descriptions${spikeInstruction}
+- Focus on decisions, not descriptions${spikeInstruction}${anomalyInstruction}
 
 Each insight must do all three:
 1. Identify the specific issue or opportunity (with the exact number)

@@ -3,12 +3,14 @@
  * Order in CATEGORY_KEYWORDS matters: earlier buckets win on first matching keyword.
  */
 export const CATEGORY_KEYWORDS = {
-  food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'dining'],
-  transport: ['uber', 'ola', 'fuel', 'petrol', 'diesel', 'bus', 'train'],
-  subscriptions: ['netflix', 'spotify', 'prime', 'subscription'],
-  utilities: ['electricity', 'water', 'internet', 'bill', 'wifi'],
-  shopping: ['amazon', 'flipkart', 'store', 'purchase'],
-  income: ['salary', 'freelance', 'income', 'payment', 'credited'],
+  food: ['swiggy', 'zomato', 'restaurant', 'cafe', 'food', 'dining', 'blinkit', 'zepto', 'dunzo'],
+  transport: ['uber', 'ola', 'rapido', 'fuel', 'petrol', 'diesel', 'bus', 'train', 'metro', 'cab', 'auto', 'toll', 'parking', 'irctc'],
+  entertainment: ['netflix', 'hotstar', 'disney', 'prime video', 'youtube', 'spotify', 'gaana', 'jiosaavn', 'jio cinema', 'bookmyshow', 'pvr', 'inox', 'gaming', 'steam'],
+  subscriptions: ['subscription', 'monthly plan', 'annual plan', 'membership'],
+  utilities: ['electricity', 'water', 'internet', 'bill', 'wifi', 'broadband', 'gas', 'lpg', 'postpaid', 'prepaid', 'recharge', 'dth', 'mobile', 'airtel', 'jio', 'vi', 'bsnl'],
+  shopping: ['amazon', 'flipkart', 'meesho', 'myntra', 'nykaa', 'ajio', 'store', 'purchase', 'market', 'mall', 'shop'],
+  transfer: ['upi', 'neft', 'imps', 'rtgs', 'transfer', 'sent to', 'received from', 'p2p', 'gpay', 'phonepe', 'paytm', 'cred'],
+  income: ['salary', 'freelance', 'income', 'credited', 'bonus', 'stipend', 'payroll', 'wages', 'reimbursement', 'refund'],
 } as const
 
 export type KeywordCategoryKey = keyof typeof CATEGORY_KEYWORDS

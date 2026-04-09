@@ -3,9 +3,11 @@ import { normalizeCategoryLabel } from '@/lib/category-suggestion'
 export const CATEGORY_DISPLAY = {
   food: 'Food & Dining',
   transport: 'Transport',
+  entertainment: 'Entertainment',
   subscriptions: 'Subscriptions',
   utilities: 'Utilities',
   shopping: 'Shopping',
+  transfer: 'Transfer',
   income: 'Income',
   other: 'Misc',
 } as const
@@ -13,9 +15,11 @@ export const CATEGORY_DISPLAY = {
 export const CATEGORY_STYLES = {
   food: 'text-orange-400',
   transport: 'text-blue-400',
+  entertainment: 'text-violet-400',
   subscriptions: 'text-purple-400',
   utilities: 'text-yellow-400',
   shopping: 'text-pink-400',
+  transfer: 'text-cyan-400',
   income: 'text-green-400',
   other: 'text-zinc-400',
 } as const

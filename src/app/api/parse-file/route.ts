@@ -27,13 +27,56 @@ export type ParsedTransaction = {
   description: string
   amount: number
   type: 'debit' | 'credit'
+  confidence?: number
 }
 
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 const MAX_BYTES = 5 * 1024 * 1024
+const MAX_TRANSACTIONS = 200
 
 const PARSE_PER_MINUTE_USER = 5
 const PARSE_PER_MINUTE_IP = 15
+
+const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/
+const NOISE_WORDS_RE = /\b(total|balance|opening|closing|brought forward|carried forward|b\/f|c\/f)\b/i
+
+function computeConfidence(tx: ParsedTransaction): number {
+  let score = 1.0
+  if (!tx.date || !ISO_DATE_RE.test(tx.date)) score -= 0.3
+  if (!Number.isFinite(tx.amount) || tx.amount <= 0) score -= 0.4
+  if (!tx.description || tx.description.trim().length < 4) score -= 0.2
+  if (tx.type !== 'debit' && tx.type !== 'credit') score -= 0.3
+  if (tx.description && NOISE_WORDS_RE.test(tx.description)) score -= 0.5
+  return Math.max(0, Math.min(1, score))
+}
+
+function detectStructure(text: string): 'table' | 'ledger' {
+  const isTableLike = text.includes('Date') && text.includes('Amount')
+  const isLedgerLike = text.split('\n').length > 50
+  if (isTableLike) return 'table'
+  if (isLedgerLike) return 'ledger'
+  return 'table'
+}
+
+/**
+ * Merge very short lines (< 15 chars) with the following line.
+ * Helps with PDFs that break transaction descriptions across lines.
+ */
+function mergeShortLines(text: string): string {
+  const lines = text.split('\n')
+  const merged: string[] = []
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i]
+    const trimmed = line.trim()
+    if (trimmed.length > 0 && trimmed.length < 15 && i + 1 < lines.length) {
+      merged.push(trimmed + ' ' + lines[i + 1].trim())
+      i++
+    } else {
+      merged.push(line)
+    }
+  }
+  return merged.join('\n')
+}
 
 async function parseWithAI(text: string): Promise<ParsedTransaction[]> {
   const apiKey = process.env.OPENAI_API_KEY
@@ -41,26 +84,49 @@ async function parseWithAI(text: string): Promise<ParsedTransaction[]> {
 
   const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 
-  const prompt = `Extract financial transactions from this bank statement text.
+  const processedText = mergeShortLines(text)
+  const structure = detectStructure(processedText)
 
-Return a JSON object with a "transactions" array:
-{
-  "transactions": [
-    { "date": "YYYY-MM-DD", "description": "string", "amount": number, "type": "debit" | "credit" }
-  ]
-}
+  console.log('[parse-file] RAW TEXT SAMPLE', processedText.slice(0, 500))
 
-Rules:
+  const prompt = `You are a financial data extraction engine.
+
+Extract transactions from raw bank statement text.
+
+The format may vary (table, ledger, mixed).
+
+STRICT RULES:
+- Only extract real transactions
+- Ignore headers, totals, balances, opening/closing balance rows, and footers
+- Do NOT hallucinate missing rows
+- Each row must have date, description, amount
+- If unsure → skip row
 - amount must be a positive number (absolute value, no negatives)
 - type: "debit" for expenses/withdrawals, "credit" for income/deposits
 - date must be in YYYY-MM-DD format
 - description: clean and concise, remove reference codes and noise
-- Ignore headers, footers, opening/closing balance rows
-- Do NOT hallucinate transactions — only extract what is clearly present in the text
-- Return { "transactions": [] } if no transactions are found
 
-Bank statement text:
-${text.slice(0, 8000)}`
+Handle:
+- Multi-line descriptions
+- Different date formats
+- Debit/Credit columns OR signed amounts
+
+Output JSON:
+{
+  "transactions": [
+    {
+      "date": "YYYY-MM-DD",
+      "description": "clean text",
+      "amount": number,
+      "type": "debit" | "credit"
+    }
+  ]
+}
+
+Structure hint: ${structure}
+
+TEXT:
+${processedText.slice(0, 8000)}`
 
   const res = await fetch(OPENAI_CHAT_URL, {
     method: 'POST',
@@ -76,7 +142,7 @@ ${text.slice(0, 8000)}`
         {
           role: 'system',
           content:
-            'You extract structured transaction data from bank statement text. Always respond with valid JSON containing a "transactions" array.',
+            'You are a financial data extraction engine. Extract structured transaction data from bank statement text. Always respond with valid JSON containing a "transactions" array.',
         },
         { role: 'user', content: prompt },
       ],
@@ -96,19 +162,41 @@ ${text.slice(0, 8000)}`
   const items = parsed.transactions
   if (!Array.isArray(items)) return []
 
+  // Double-pass validation: strict checks before accepting each row
   const result: ParsedTransaction[] = []
   for (const item of items) {
     if (!item || typeof item !== 'object') continue
     const tx = item as Record<string, unknown>
+
     const date = typeof tx.date === 'string' ? tx.date.trim() : ''
+    if (!date || !ISO_DATE_RE.test(date)) continue
+
     const description = typeof tx.description === 'string' ? tx.description.trim() : ''
-    const amount = typeof tx.amount === 'number' ? Math.abs(tx.amount) : 0
-    const type = tx.type === 'credit' ? 'credit' : 'debit'
-    if (!date || !description || amount <= 0) continue
+    if (description.length < 3) continue
+
+    const rawAmount = tx.amount
+    const amount =
+      typeof rawAmount === 'number'
+        ? Math.abs(rawAmount)
+        : typeof rawAmount === 'string'
+          ? Math.abs(parseFloat(rawAmount))
+          : NaN
+    if (!Number.isFinite(amount) || amount <= 0) continue
+
+    const type: 'debit' | 'credit' = tx.type === 'credit' ? 'credit' : 'debit'
+
     result.push({ date, description, amount, type })
   }
 
-  return result
+  // Safety limit + confidence scoring
+  const capped = result.slice(0, MAX_TRANSACTIONS).map((tx) => ({
+    ...tx,
+    confidence: computeConfidence(tx),
+  }))
+
+  console.log('[parse-file] PARSED COUNT', capped.length)
+
+  return capped
 }
 
 export async function POST(req: Request) {

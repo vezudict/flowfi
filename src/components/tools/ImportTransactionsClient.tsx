@@ -1,6 +1,6 @@
 'use client'
 
-import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
+import { AlertCircle, AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
@@ -31,6 +31,7 @@ type PdfPreviewRow = {
   description: string
   amount: string
   type: 'credit' | 'debit'
+  confidence?: number
 }
 
 function newPdfRow(
@@ -60,12 +61,15 @@ function pdfRowErrors(row: PdfPreviewRow): string[] {
 }
 
 function parsedToPdfRow(tx: ParsedTransaction): PdfPreviewRow {
-  return newPdfRow({
-    date: tx.date,
-    description: tx.description,
-    amount: String(tx.amount),
-    type: tx.type,
-  })
+  return {
+    ...newPdfRow({
+      date: tx.date,
+      description: tx.description,
+      amount: String(tx.amount),
+      type: tx.type,
+    }),
+    confidence: tx.confidence,
+  }
 }
 
 function friendlyPdfError(message: string): string {
@@ -79,6 +83,99 @@ function friendlyPdfError(message: string): string {
   if (lower.includes('too many') || lower.includes('429')) return 'Too many requests. Wait a moment and try again.'
   if (m.length > 120 || /\[object \w+\]/.test(m)) return PUBLIC_ERROR_GENERIC
   return m
+}
+
+// ─── Parsed transaction normalizer ────────────────────────────────────────────
+
+const NOISE_DESC_RE = /\b(balance|total|opening|closing)\b/i
+
+type NormalizeResult = {
+  transactions: ParsedTransaction[]
+  droppedCount: number
+  dedupedCount: number
+}
+
+function normalizeParsedTransactions(raw: ParsedTransaction[]): NormalizeResult {
+  // Merge consecutive rows where description is too short (< 5 chars) into the previous row
+  const merged: ParsedTransaction[] = []
+  for (const tx of raw) {
+    const desc = String(tx.description ?? '').trim()
+    if (desc.length > 0 && desc.length < 5 && merged.length > 0) {
+      merged[merged.length - 1] = {
+        ...merged[merged.length - 1],
+        description: String(merged[merged.length - 1].description ?? '').trim() + ' ' + desc,
+      }
+    } else {
+      merged.push({ ...tx })
+    }
+  }
+
+  const valid: ParsedTransaction[] = []
+  let droppedCount = 0
+
+  for (const tx of merged) {
+    // Drop if date is missing or unparseable
+    const rawDate = String(tx.date ?? '').trim()
+    if (!rawDate) { droppedCount++; continue }
+    const date = parsePdfStatementDateToIso(rawDate)
+    if (!date) { droppedCount++; continue }
+
+    // Normalize amount — drop if missing or zero
+    const rawAmount = Number(tx.amount)
+    if (!Number.isFinite(rawAmount)) { droppedCount++; continue }
+    const amount = Math.abs(rawAmount)
+    if (amount <= 0) { droppedCount++; continue }
+
+    // Infer type from sign: negative raw amount → credit, positive → debit
+    const type: 'debit' | 'credit' =
+      rawAmount < 0 ? 'credit' : tx.type === 'credit' ? 'credit' : 'debit'
+
+    // Drop noise rows (balance summaries, totals, opening/closing)
+    const rawDesc = String(tx.description ?? '').trim()
+    if (rawDesc && NOISE_DESC_RE.test(rawDesc)) { droppedCount++; continue }
+
+    // Empty description → placeholder (don't drop)
+    const description = rawDesc || 'Unknown transaction'
+
+    // Normalize casing: ALL_CAPS only → Title Case (leave mixed-case alone)
+    const hasLowercase = /[a-z]/.test(description)
+    const normalizedDesc = hasLowercase
+      ? description
+      : description.replace(/\b[A-Za-z]+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+
+    valid.push({ date, description: normalizedDesc, amount, type, confidence: tx.confidence })
+  }
+
+  // Deduplicate by date + amount (2 dp) + description (case-insensitive)
+  const seen = new Set<string>()
+  const deduped: ParsedTransaction[] = []
+  let dedupedCount = 0
+
+  for (const tx of valid) {
+    const key = `${tx.date}|${tx.amount.toFixed(2)}|${tx.description.toLowerCase()}`
+    if (seen.has(key)) {
+      dedupedCount++
+      continue
+    }
+    seen.add(key)
+    deduped.push(tx)
+  }
+
+  // Sort by date descending
+  deduped.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('CLEANED TRANSACTIONS', deduped.length)
+    console.log('REMOVED COUNT', droppedCount + dedupedCount)
+  }
+
+  return { transactions: deduped, droppedCount, dedupedCount }
+}
+
+function buildNormalizeWarning(droppedCount: number, dedupedCount: number): string | null {
+  const total = droppedCount + dedupedCount
+  if (total === 0) return null
+  return `${total} invalid or duplicate ${total === 1 ? 'entry was' : 'entries were'} removed automatically.`
 }
 
 // ─── Main component ────────────────────────────────────────────────────────────
@@ -101,6 +198,8 @@ export function ImportTransactionsClient() {
   const [pdfRows, setPdfRows] = useState<PdfPreviewRow[]>([])
   const [pdfImportBusy, setPdfImportBusy] = useState(false)
   const [pdfImportError, setPdfImportError] = useState<string | null>(null)
+  const [normalizeWarning, setNormalizeWarning] = useState<string | null>(null)
+  const [showUncertainOnly, setShowUncertainOnly] = useState(false)
 
   const reset = useCallback(() => {
     setMode(null)
@@ -109,6 +208,8 @@ export function ImportTransactionsClient() {
     setParseError(null)
     setPdfRows([])
     setPdfImportError(null)
+    setNormalizeWarning(null)
+    setShowUncertainOnly(false)
   }, [])
 
   // ─── File change handler ─────────────────────────────────────────────────────
@@ -145,17 +246,17 @@ export function ImportTransactionsClient() {
         setFileName(null)
         return
       }
-      const rows = result.preview.rows.map((r) =>
-        parsedToPdfRow({
-          date: r.createdAtIso ?? r.dateRaw,
-          description: r.description ?? r.descriptionRaw,
-          amount: r.amount ?? 0,
-          type: r.transactionType ?? 'debit',
-        }),
-      )
+      const raw = result.preview.rows.map((r) => ({
+        date: r.createdAtIso ?? r.dateRaw,
+        description: r.description ?? r.descriptionRaw,
+        amount: r.amount ?? 0,
+        type: (r.transactionType ?? 'debit') as 'debit' | 'credit',
+      }))
+      const { transactions, droppedCount, dedupedCount } = normalizeParsedTransactions(raw)
+      setNormalizeWarning(buildNormalizeWarning(droppedCount, dedupedCount))
       setParseSource('csv')
       setMode('pdf')
-      setPdfRows(rows)
+      setPdfRows(transactions.map(parsedToPdfRow))
       return
     }
 
@@ -183,10 +284,13 @@ export function ImportTransactionsClient() {
       return
     }
 
-    const rows = parsed.data.transactions.map(parsedToPdfRow)
+    const { transactions, droppedCount, dedupedCount } = normalizeParsedTransactions(
+      parsed.data.transactions,
+    )
+    setNormalizeWarning(buildNormalizeWarning(droppedCount, dedupedCount))
     setParseSource('ai')
     setMode('pdf')
-    setPdfRows(rows)
+    setPdfRows(transactions.map(parsedToPdfRow))
   }
 
   // ─── PDF row editing ─────────────────────────────────────────────────────────
@@ -222,6 +326,18 @@ export function ImportTransactionsClient() {
     }
     return { validCount: valid.length, debitTotal, creditTotal }
   }, [pdfRows])
+
+  const uncertainCount = useMemo(
+    () => pdfRows.filter((r) => (r.confidence ?? 1) < 0.75).length,
+    [pdfRows],
+  )
+
+  const displayRows = useMemo(() => {
+    if (!showUncertainOnly) return pdfRows
+    return [...pdfRows]
+      .filter((r) => (r.confidence ?? 1) < 0.75)
+      .sort((a, b) => (a.confidence ?? 1) - (b.confidence ?? 1))
+  }, [pdfRows, showUncertainOnly])
 
   const pdfHasNoValidRows = pdfRows.length > 0 && pdfRows.every((r) => pdfRowErrors(r).length > 0)
 
@@ -391,6 +507,16 @@ export function ImportTransactionsClient() {
             </p>
           ) : null}
 
+          {normalizeWarning ? (
+            <p
+              className="mt-4 flex gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-100"
+              role="status"
+            >
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 opacity-80" aria-hidden />
+              {normalizeWarning}
+            </p>
+          ) : null}
+
         </div>
       </section>
 
@@ -432,6 +558,20 @@ export function ImportTransactionsClient() {
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
+                    {parseSource === 'ai' && uncertainCount > 0 ? (
+                      <button
+                        type="button"
+                        onClick={() => setShowUncertainOnly((v) => !v)}
+                        className={`inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium transition-colors duration-150 ${
+                          showUncertainOnly
+                            ? 'border-amber-400 bg-amber-50 text-amber-900 hover:bg-amber-100 dark:border-amber-600 dark:bg-amber-950/50 dark:text-amber-100 dark:hover:bg-amber-950'
+                            : 'border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800'
+                        }`}
+                      >
+                        <AlertCircle className="h-3.5 w-3.5" aria-hidden />
+                        {showUncertainOnly ? 'Show all' : `Uncertain (${uncertainCount})`}
+                      </button>
+                    ) : null}
                     <button
                       type="button"
                       onClick={addPdfRow}
@@ -514,18 +654,31 @@ export function ImportTransactionsClient() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
-                      {pdfRows.map((row, idx) => {
+                      {displayRows.map((row, idx) => {
                         const errs = pdfRowErrors(row)
                         const invalid = errs.length > 0
+                        const conf = row.confidence ?? 1
+                        const isLowConf = parseSource === 'ai' && !invalid && conf < 0.5
+                        const isMedConf = parseSource === 'ai' && !invalid && conf >= 0.5 && conf < 0.75
+                        const confTooltip =
+                          isLowConf
+                            ? 'Low confidence — please verify this transaction'
+                            : isMedConf
+                              ? 'Moderate confidence — please verify this transaction'
+                              : undefined
                         return (
                           <tr
                             key={row.id}
                             className={
                               invalid
                                 ? 'bg-red-50/50 dark:bg-red-950/20'
-                                : 'bg-white dark:bg-zinc-950'
+                                : isLowConf
+                                  ? 'bg-red-50/40 dark:bg-red-950/15'
+                                  : isMedConf
+                                    ? 'bg-amber-50/40 dark:bg-amber-950/15'
+                                    : 'bg-white dark:bg-zinc-950'
                             }
-                            title={invalid ? errs.join(' · ') : undefined}
+                            title={invalid ? errs.join(' · ') : confTooltip}
                           >
                             <td className="px-3 py-2 align-middle">
                               <input
@@ -537,15 +690,25 @@ export function ImportTransactionsClient() {
                               />
                             </td>
                             <td className="px-3 py-2 align-middle">
-                              <input
-                                className={inputClass}
-                                aria-label={`Description row ${idx + 1}`}
-                                value={row.description}
-                                onChange={(e) =>
-                                  updatePdfRow(row.id, { description: e.target.value })
-                                }
-                                placeholder="Description"
-                              />
+                              <div className="flex items-center gap-1.5">
+                                {(isLowConf || isMedConf) ? (
+                                  <span title={confTooltip} className="shrink-0">
+                                    <AlertCircle
+                                      className={`h-3.5 w-3.5 ${isLowConf ? 'text-red-500 dark:text-red-400' : 'text-amber-500 dark:text-amber-400'}`}
+                                      aria-hidden
+                                    />
+                                  </span>
+                                ) : null}
+                                <input
+                                  className={inputClass}
+                                  aria-label={`Description row ${idx + 1}`}
+                                  value={row.description}
+                                  onChange={(e) =>
+                                    updatePdfRow(row.id, { description: e.target.value })
+                                  }
+                                  placeholder="Description"
+                                />
+                              </div>
                             </td>
                             <td className="px-3 py-2 align-middle">
                               <input

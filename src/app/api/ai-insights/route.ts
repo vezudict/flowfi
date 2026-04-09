@@ -4,6 +4,7 @@ import {
   PUBLIC_ERROR_UNAUTHORIZED,
 } from '@/lib/api-public-error'
 import { generateAIInsights, type AIInsight, type InsightsSummary } from '@/lib/ai-insights'
+import type { Anomaly } from '@/lib/anomaly-detection'
 import type { AnalyticsBundle } from '@/lib/transaction-analytics'
 import {
   buildRateLimitKey,
@@ -43,7 +44,7 @@ function hashAnalytics(analytics: AnalyticsBundle): string {
   return h.toString(36)
 }
 
-function buildSummary(analytics: AnalyticsBundle, currency: string): InsightsSummary {
+function buildSummary(analytics: AnalyticsBundle, currency: string, anomalies?: Anomaly[]): InsightsSummary {
   // Compute average daily spend from days that had any spending
   const spendingDays = analytics.dailyInCurrentMonth.filter((d) => d.amount > 0)
   const avgDailySpend =
@@ -69,6 +70,7 @@ function buildSummary(analytics: AnalyticsBundle, currency: string): InsightsSum
     avgDailySpend,
     previousMonthIncome: analytics.previousMonthIncomeTotal,
     currency,
+    anomalies,
   }
 }
 
@@ -105,9 +107,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: PUBLIC_ERROR_TOO_MANY_REQUESTS }, { status: 429 })
     }
 
-    const body = (await request.json()) as { analytics?: AnalyticsBundle; currency?: string }
+    const body = (await request.json()) as { analytics?: AnalyticsBundle; currency?: string; anomalies?: Anomaly[] }
     const analytics = body.analytics
     const currency = typeof body.currency === 'string' ? body.currency : 'USD'
+    const anomalies = Array.isArray(body.anomalies) ? (body.anomalies as Anomaly[]) : undefined
 
     if (!analytics || typeof analytics !== 'object') {
       return NextResponse.json({ error: 'analytics required' }, { status: 400 })
@@ -133,12 +136,12 @@ export async function POST(request: Request) {
       // Only serve cache if it contains structured AIInsight objects (not legacy string[])
       const insights = Array.isArray(raw) && raw.length > 0 && isAIInsightArray(raw) ? raw : null
       if (insights) {
-        return NextResponse.json({ insights, cached: true, debug_model: MODEL })
+        return NextResponse.json({ insights, anomalies, cached: true, debug_model: MODEL })
       }
     }
 
     // Generate fresh
-    const summary = buildSummary(analytics, currency)
+    const summary = buildSummary(analytics, currency, anomalies)
     if (isDev) {
       console.log('AI SUMMARY BUILT', summary)
     }
@@ -151,7 +154,7 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,month_key' },
     )
 
-    return NextResponse.json({ insights, cached: false, debug_model: MODEL })
+    return NextResponse.json({ insights, anomalies, cached: false, debug_model: MODEL })
   } catch (err) {
     console.error('AI ROUTE ERROR', err)
     return Response.json({ error: String(err) }, { status: 500 })
