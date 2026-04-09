@@ -128,7 +128,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
         className={`group flex items-center gap-3 rounded-lg border px-4 py-4 outline-none transition-[background-color,border-color,box-shadow] duration-150 ease-out focus-within:ring-2 focus-within:ring-indigo-500/30 ${
           showSelectedChrome
             ? 'border-indigo-400/40 bg-indigo-500/[0.06] shadow-[inset_0_0_0_1px_rgba(99,102,241,0.12)] dark:border-indigo-500/35 dark:bg-indigo-500/10'
-            : 'border-zinc-200/40 bg-transparent hover:bg-black/[0.03] dark:border-white/5 dark:hover:bg-white/5'
+            : 'border-zinc-200/40 bg-transparent transition-colors duration-150 hover:bg-zinc-100/60 dark:border-white/5 dark:hover:bg-zinc-800/40'
         }`}
       >
         <button
@@ -226,7 +226,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
 })
 
 const inputClass =
-  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-indigo-600 focus:ring-2 focus:ring-indigo-500/25 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-indigo-400 dark:focus:ring-indigo-400/30'
+  'w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none transition-all duration-150 ease-in-out focus:border-blue-500 focus:ring-1 focus:ring-blue-500/30 focus:shadow-[0_0_0_3px_rgba(59,130,246,0.10)] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-blue-400 dark:focus:ring-blue-400/25 dark:focus:shadow-[0_0_0_3px_rgba(96,165,250,0.08)]'
 
 function DashboardLoadingSkeleton() {
   return (
@@ -745,6 +745,7 @@ export default function DashboardPage() {
                 ? formatCurrency(analytics.topCategory.amount, currency)
                 : 'No data yet'
             }
+            subdued
           />
         </section>
       )}
@@ -1034,7 +1035,7 @@ export default function DashboardPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:scale-[0.98] hover:bg-indigo-700 hover:shadow active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               {submitting ? (
                 <>

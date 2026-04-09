@@ -28,10 +28,10 @@ function InsightSection({
       <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         {title}
       </h3>
-      <ul className="mt-3 space-y-2.5" role="list">
+      <ul className="mt-2.5 space-y-2" role="list">
         {insights.map((insight) => (
           <li key={insight.id}>
-            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-300">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-3.5 py-3 text-sm leading-relaxed text-zinc-700 transition-colors duration-150 hover:bg-zinc-100/70 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-300 dark:hover:bg-zinc-800/70">
               {insight.text}
             </div>
           </li>
@@ -96,7 +96,7 @@ function AIInsightCard({ insight }: { insight: AIInsight }) {
   return (
     <li>
       <div
-        className={`group rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-4 transition-all duration-200 hover:-translate-y-px dark:border-zinc-800 dark:bg-zinc-800/40 ${CARD_GLOW[insight.type]}`}
+        className={`group rounded-lg border border-zinc-200 bg-zinc-50/80 px-3.5 py-3 transition-all duration-200 hover:-translate-y-px hover:bg-zinc-100/70 dark:border-zinc-800 dark:bg-zinc-800/40 dark:hover:bg-zinc-800/70 ${CARD_GLOW[insight.type]}`}
       >
         {/* Top row: icon + type badge + priority badge */}
         <div className="flex items-center gap-2">
@@ -116,12 +116,12 @@ function AIInsightCard({ insight }: { insight: AIInsight }) {
         </div>
 
         {/* Title */}
-        <p className="mt-2.5 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
+        <p className="mt-2 text-sm font-semibold leading-snug text-zinc-900 dark:text-zinc-100">
           {insight.title}
         </p>
 
         {/* Description */}
-        <p className="mt-1 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+        <p className="mt-1 line-clamp-3 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
           {insight.description}
         </p>
       </div>
@@ -138,7 +138,7 @@ function AIInsightSection({ insights }: { insights: AIInsight[] }) {
       <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         AI Insights
       </h3>
-      <ul className="mt-3 space-y-2.5" role="list">
+      <ul className="mt-2.5 space-y-2" role="list">
         {insights.map((insight, i) => (
           <AIInsightCard key={i} insight={insight} />
         ))}
@@ -165,14 +165,14 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   return (
     <li>
       <div
-        className={`rounded-lg border px-4 py-3.5 transition-all duration-200 hover:-translate-y-px ${
+        className={`rounded-lg border px-3.5 py-3 transition-all duration-200 hover:-translate-y-px ${
           anomaly.severity === 'high'
-            ? 'border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
-            : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+            ? 'border-red-400/60 bg-red-50/70 shadow-[0_0_12px_1px_rgba(239,68,68,0.10)] dark:border-red-700/50 dark:bg-red-950/25 dark:shadow-[0_0_12px_1px_rgba(239,68,68,0.08)]'
+            : 'border-orange-400/60 bg-amber-50/70 shadow-[0_0_12px_1px_rgba(251,146,60,0.10)] dark:border-orange-700/50 dark:bg-amber-950/20 dark:shadow-[0_0_12px_1px_rgba(251,146,60,0.08)]'
         }`}
       >
         <div className="flex items-center gap-2">
-          <span className="text-base leading-none" role="img" aria-label="anomaly">⚠️</span>
+          <span className="text-lg leading-none" role="img" aria-label="anomaly">⚠️</span>
           <span
             className={`inline-flex items-center rounded-full border px-2 py-0.5 text-xs font-medium tracking-wide ${SEVERITY_STYLES[anomaly.severity]}`}
           >
@@ -199,7 +199,7 @@ function AnomalySection({ anomalies }: { anomalies: Anomaly[] }) {
       <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
         Anomalies
       </h3>
-      <ul className="mt-3 space-y-2.5" role="list">
+      <ul className="mt-2.5 space-y-2" role="list">
         {anomalies.map((anomaly, i) => (
           <AnomalyCard key={i} anomaly={anomaly} />
         ))}

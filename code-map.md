@@ -246,3 +246,20 @@ User UI (app/*, components/*)
 3. Optional: run a quick `rg` or file search for `src/lib` / `src/app/api` when doing a periodic refresh.
 
 No build step is required for this map; it is documentation only.
+
+---
+
+## UI Polish Phase – Premium Refinements
+
+Changes applied across the UI to elevate from "clean" → "premium SaaS (Stripe/Linear level)". Only styling, layout, spacing, and micro-interactions were modified — no business logic, API, or state was changed.
+
+| Component / File | Change |
+|------------------|--------|
+| `NetSavingsCard.tsx` | Added `scale-[1.02]`, conditional green glow shadow when savings are positive, `font-bold` on value for stronger hierarchy |
+| `SummaryCard.tsx` | Added optional `subdued` prop — reduces value to `text-2xl font-medium` for secondary cards; applied to "Top spending category" card in dashboard |
+| `FinancialHealthCard.tsx` | Converted from stacked layout to compact inline row: icon + label + score + sub-label on one line, explanation as small text below; reduced padding (`py-3.5`/`py-4`) |
+| `FinancialInsights.tsx` | `line-clamp-3` on AI insight descriptions; reduced vertical spacing (`space-y-2`, `mt-2.5`); hover tint on insight/AI cards; anomaly cards upgraded to stronger colored border (`border-*-400/60`) + directional glow shadow; slightly larger anomaly icon (`text-lg`) |
+| `dashboard/page.tsx` | Input `inputClass` now uses `focus:ring-1 focus:ring-blue-500/30` + subtle focus glow shadow; submit button `hover:scale-[0.98]`; transaction row unselected hover upgraded to `hover:bg-zinc-100/60 dark:hover:bg-zinc-800/40` |
+| `tools/page.tsx` | Lucide icons per tool (BarChart2, Calculator, GitCompare, Home, FileInput) in indigo icon container; `min-h-[140px]` cards; `hover:shadow-lg`; tightened header spacing |
+| `settings/SettingsShell.tsx` | Active nav item: stronger highlight with `shadow-[inset_0_0_0_1px_rgba(99,102,241,0.15)]` + `dark:bg-indigo-500/20`; inactive hover adds text color change; nav `pr-4 → pr-3` |
+| `ImportTransactionsClient.tsx` | Upload box idle hover: brighter dashed border (`indigo-500/70`) + directional glow (`shadow-[0_0_16px_2px_rgba(99,102,241,0.08)]`) |

@@ -452,7 +452,7 @@ export function ImportTransactionsClient() {
             className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
               busy
                 ? 'border-indigo-300/70 bg-indigo-50/60 dark:border-indigo-500/35 dark:bg-indigo-950/25'
-                : 'border-zinc-300 bg-zinc-50/80 hover:border-indigo-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-500/40'
+                : 'border-zinc-300 bg-zinc-50/80 hover:border-indigo-500/70 hover:bg-zinc-50 hover:shadow-[0_0_16px_2px_rgba(99,102,241,0.08)] dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-400/60 dark:hover:shadow-[0_0_16px_2px_rgba(99,102,241,0.07)]'
             }`}
           >
             {busy ? (

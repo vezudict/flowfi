@@ -79,7 +79,7 @@ export function SettingsShell() {
       <div className="flex flex-col gap-8 md:flex-row md:items-start md:gap-10">
         <aside className="shrink-0 md:w-44 lg:w-52">
           <nav
-            className="flex flex-row gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0.5 md:overflow-visible md:pb-0 md:border-r md:border-zinc-200/80 md:pr-4 dark:md:border-zinc-800"
+            className="flex flex-row gap-1 overflow-x-auto pb-1 md:flex-col md:gap-0.5 md:overflow-visible md:pb-0 md:border-r md:border-zinc-200/80 md:pr-3 dark:md:border-zinc-800"
             aria-label="Settings sections"
           >
             {NAV.map((item) => {
@@ -109,8 +109,8 @@ export function SettingsShell() {
                     'shrink-0 rounded-lg px-3 py-2.5 text-left text-sm font-medium transition-all duration-150',
                     'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40',
                     isActive
-                      ? 'bg-indigo-100 text-indigo-900 dark:bg-indigo-500/15 dark:text-indigo-100'
-                      : 'text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-900',
+                      ? 'bg-indigo-100 text-indigo-800 shadow-[inset_0_0_0_1px_rgba(99,102,241,0.15)] dark:bg-indigo-500/20 dark:text-indigo-200'
+                      : 'text-zinc-600 hover:bg-zinc-100/80 hover:text-zinc-900 dark:text-zinc-400 dark:hover:bg-zinc-800/60 dark:hover:text-zinc-200',
                   ].join(' ')}
                   aria-current={isActive ? 'page' : undefined}
                 >
