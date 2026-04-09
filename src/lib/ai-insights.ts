@@ -29,6 +29,9 @@ export type AIInsight = {
 const OPENAI_CHAT_URL = 'https://api.openai.com/v1/chat/completions'
 const isDev = process.env.NODE_ENV === 'development'
 
+/** Words that signal vague, uncommitted, or benchmark-driven phrasing. */
+const WEAK_WORDS = ['consider', 'might', 'could', 'typically', 'average user', 'benchmark']
+
 function sparseFallbackInsights(): AIInsight[] {
   return [
     {
@@ -43,28 +46,51 @@ function sparseFallbackInsights(): AIInsight[] {
 function rateLimitFallbackInsights(): AIInsight[] {
   return [
     {
-      title: 'Category concentration',
-      description:
-        'Spending is concentrated in your top category. Consider setting a budget cap.',
-      type: 'spending',
-      priority: 'medium',
-    },
-    {
-      title: 'Savings momentum',
-      description: 'You are maintaining positive savings this month.',
-      type: 'income',
+      title: 'Rate limit reached',
+      description: 'AI insights are temporarily unavailable. Check back in a moment.',
+      type: 'alert',
       priority: 'low',
     },
   ]
 }
 
+/**
+ * Drop insights whose description contains weak, vague, or hallucination-prone phrasing.
+ * Logs dropped items in dev mode. Keeps at least 1 insight even if all would be filtered.
+ */
+function filterWeakInsights(items: AIInsight[]): AIInsight[] {
+  const strong = items.filter((item) => {
+    const lower = item.description.toLowerCase()
+    const weak = WEAK_WORDS.some((w) => lower.includes(w))
+    if (weak && isDev) {
+      console.warn('AI INSIGHT DROPPED (weak phrasing):', item.title, '—', item.description)
+    }
+    return !weak
+  })
+  // Never return empty — fall back to unfiltered set if all were dropped
+  return strong.length > 0 ? strong : items
+}
+
 function buildPrompt(summary: InsightsSummary): string {
+  // Step 3 — pre-computed ratios so AI doesn't need to derive them
+  const savingsRate =
+    summary.totalIncome > 0
+      ? Math.round((summary.netSavings / summary.totalIncome) * 1000) / 10
+      : null
+
+  const topCategoryRatio =
+    summary.totalSpending > 0 && summary.topCategoryAmount != null
+      ? Math.round((summary.topCategoryAmount / summary.totalSpending) * 1000) / 10
+      : null
+
   const ctx = {
     total_spending: summary.totalSpending,
     total_income: summary.totalIncome,
     net_savings: summary.netSavings,
+    savings_rate_pct: savingsRate,
     top_category: summary.topCategory?.category ?? null,
     top_category_amount: summary.topCategoryAmount,
+    top_category_ratio_pct: topCategoryRatio,
     category_breakdown: summary.categoryBreakdown,
     unusual_spikes: summary.unusualSpikes,
     transaction_count: summary.transactionCount,
@@ -77,29 +103,44 @@ function buildPrompt(summary: InsightsSummary): string {
     console.log('AI CONTEXT', JSON.stringify(ctx, null, 2))
   }
 
-  return `You are a high-end fintech AI (like CRED / Monarch / Copilot Money).
+  // Step 7 — force a spike insight when data shows one
+  const spikeInstruction =
+    ctx.unusual_spikes.length > 0
+      ? `\nREQUIRED: One insight MUST specifically address the spending spike(s) in unusual_spikes — cite the exact date(s) and amount(s).`
+      : ''
 
-Your job is to generate INSIGHTFUL, NON-GENERIC financial insights.
+  return `You are a premium fintech intelligence engine.
 
 Rules:
-- NO generic advice (e.g., "save more", "spend less", "track your spending")
-- Each insight MUST reference ACTUAL numbers from the data
-- Prioritize unusual patterns, inefficiencies, or opportunities
-- Be concise but specific — 1-2 sentences per description
-- Sound like a premium financial product
-- Max 5 insights
+- NO generic advice. NEVER say "save more", "spend less", "track your spending"
+- NO external benchmarks. NEVER reference "typical users", "average income bracket", or anything not in the data
+- ONLY use numbers provided in the financial data below
+- Every insight MUST include a measurable impact expressed as a currency amount or percentage
+- Focus on decisions, not descriptions${spikeInstruction}
 
-Return a JSON object with an "insights" key containing an array:
+Each insight must do all three:
+1. Identify the specific issue or opportunity (with the exact number)
+2. Quantify the impact (e.g., "represents 42% of spending" or "saving ₹800 more/month")
+3. Suggest a concrete, specific action (not "reduce" — name the category, name a target amount)
+
+Example of BAD insight: "Consider reducing shopping expenses to save more."
+Example of GOOD insight: "Shopping at ₹3,300 takes up 38% of total spending. Cutting to ₹2,500 would lift net savings by ₹800 — an 18% improvement."
+
+Tone: Confident, analytical, no fluff. Sound like CRED or Copilot Money.
+
+Return a JSON object:
 {
   "insights": [
     {
-      "title": "Short headline (max 6 words)",
-      "description": "Specific insight referencing real numbers",
+      "title": "Short punchy headline (max 6 words)",
+      "description": "Current state with exact number → impact → specific action",
       "type": "spending" | "income" | "opportunity" | "alert",
       "priority": "high" | "medium" | "low"
     }
   ]
 }
+
+Max 5 insights. Only output JSON — no explanation, no markdown fences.
 
 Financial data:
 ${JSON.stringify(ctx, null, 2)}`
@@ -128,13 +169,13 @@ export async function generateAIInsights(
       },
       body: JSON.stringify({
         model: openaiModel,
-        temperature: 0.4,
+        temperature: 0.3,
         response_format: { type: 'json_object' },
         messages: [
           {
             role: 'system',
             content:
-              'You are a premium fintech AI that generates specific, data-driven financial insights. Always respond with valid JSON.',
+              'You are a premium fintech intelligence engine. Generate decision-driving, data-specific financial insights. Use only the numbers provided. Always respond with valid JSON.',
           },
           {
             role: 'user',
@@ -179,7 +220,8 @@ export async function generateAIInsights(
       throw new Error('Unexpected OpenAI response shape')
     }
 
-    return items.filter(isAIInsight).slice(0, 5)
+    const valid = items.filter(isAIInsight).slice(0, 5)
+    return filterWeakInsights(valid)
   } catch (err) {
     console.error('OPENAI ERROR', err)
     if (String(err).includes('429')) {
