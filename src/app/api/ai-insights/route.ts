@@ -17,23 +17,57 @@ const AI_PER_MINUTE_USER = 10
 /** Aggregate IP cap to prevent mass scraping. */
 const AI_PER_MINUTE_IP = 30
 
+const isDev = process.env.NODE_ENV === 'development'
+
 function monthKey(date: Date): string {
   const y = date.getFullYear()
   const m = String(date.getMonth() + 1).padStart(2, '0')
   return `${y}-${m}`
 }
 
-function buildSummary(analytics: AnalyticsBundle, currency: string): InsightsSummary {
-  const categoryBreakdown: Record<string, number> = {}
-  for (const { name, value } of analytics.pieByCategory) {
-    categoryBreakdown[name] = value
+/**
+ * Lightweight djb2-style hash of key analytics values.
+ * Used to bust the cache when spending behavior changes within a month.
+ */
+function hashAnalytics(analytics: AnalyticsBundle): string {
+  const str = JSON.stringify({
+    t: analytics.currentMonthTotal,
+    i: analytics.currentMonthIncomeTotal,
+    c: analytics.transactionCount,
+  })
+  let h = 5381
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) + h) ^ str.charCodeAt(i)
+    h = h >>> 0
   }
+  return h.toString(36)
+}
+
+function buildSummary(analytics: AnalyticsBundle, currency: string): InsightsSummary {
+  // Compute average daily spend from days that had any spending
+  const spendingDays = analytics.dailyInCurrentMonth.filter((d) => d.amount > 0)
+  const avgDailySpend =
+    spendingDays.length > 0
+      ? Math.round((analytics.currentMonthTotal / spendingDays.length) * 100) / 100
+      : 0
+
+  // Unusual spikes: days with spending more than 2x the daily average
+  const unusualSpikes = analytics.dailyInCurrentMonth
+    .filter((d) => d.amount > avgDailySpend * 2 && d.amount > 0)
+    .sort((a, b) => b.amount - a.amount)
+    .slice(0, 3)
+
   return {
     totalSpending: analytics.currentMonthTotal,
     totalIncome: analytics.currentMonthIncomeTotal,
     netSavings: analytics.netSavingsThisMonth,
     topCategory: analytics.topCategory,
-    categoryBreakdown,
+    topCategoryAmount: analytics.topCategory?.amount ?? null,
+    categoryBreakdown: analytics.pieByCategory.slice(0, 5),
+    unusualSpikes,
+    transactionCount: analytics.transactionCount,
+    avgDailySpend,
+    previousMonthIncome: analytics.previousMonthIncomeTotal,
     currency,
   }
 }
@@ -78,8 +112,9 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'analytics required' }, { status: 400 })
     }
 
-    const key = monthKey(new Date())
     const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+    // Cache key includes analytics hash so insights refresh when spending changes
+    const key = `${monthKey(new Date())}:${hashAnalytics(analytics)}`
 
     // Cache read
     const { data: cached } = await supabase
@@ -100,6 +135,9 @@ export async function POST(request: Request) {
 
     // Generate fresh
     const summary = buildSummary(analytics, currency)
+    if (isDev) {
+      console.log('AI SUMMARY BUILT', summary)
+    }
     console.log('🔥 AI MODEL USED:', MODEL)
     const insights = await generateAIInsights(summary, MODEL)
 
