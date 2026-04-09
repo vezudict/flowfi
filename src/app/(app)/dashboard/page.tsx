@@ -270,6 +270,8 @@ export default function DashboardPage() {
   const [submitting, setSubmitting] = useState(false)
   const [aiInsights, setAiInsights] = useState<AIInsight[] | null>(null)
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
+  const [aiEnabled, setAiEnabled] = useState(false)
+  const [aiLastUpdated, setAiLastUpdated] = useState<Date | null>(null)
   const categorySyncedFromSuggestion = useRef<string | null>(null)
 
   const suggestedCategory = useMemo(
@@ -427,49 +429,40 @@ export default function DashboardPage() {
     void loadDashboard()
   }, [user, loadDashboard])
 
-  useEffect(() => {
-    if (authLoading) return
-    if (!transactions || transactions.length === 0) {
-      setAiInsights(null)
-      return
-    }
-    if (!user || !session?.access_token) return
-
-    let cancelled = false
+  const fetchAIInsights = async () => {
+    if (!transactions || transactions.length === 0) return
     setAiInsightsLoading(true)
-
-    const fetchAI = async () => {
-      console.log('TRIGGERING AI INSIGHTS', transactions.length)
-      try {
-        const analyticsSnapshot = computeAnalytics(transactions)
-        const res = await authedFetch('/api/ai-insights', {
-          method: 'POST',
-          json: { analytics: analyticsSnapshot, currency },
-        })
-        const data: unknown = await res.json()
-        console.log('AI INSIGHTS RESPONSE', data)
-        if (cancelled) return
-        setAiInsightsLoading(false)
-        if (
-          res.ok &&
-          data &&
-          typeof data === 'object' &&
-          'insights' in data &&
-          Array.isArray((data as { insights: unknown }).insights)
-        ) {
-          setAiInsights((data as { insights: AIInsight[] }).insights)
-        }
-      } catch (err) {
-        console.error('AI INSIGHTS ERROR', err)
-        if (!cancelled) setAiInsightsLoading(false)
+    try {
+      const analyticsSnapshot = computeAnalytics(transactions)
+      const res = await authedFetch('/api/ai-insights', {
+        method: 'POST',
+        json: { analytics: analyticsSnapshot, currency },
+      })
+      const data: unknown = await res.json()
+      if (
+        res.ok &&
+        data &&
+        typeof data === 'object' &&
+        'insights' in data &&
+        Array.isArray((data as { insights: unknown }).insights)
+      ) {
+        setAiInsights((data as { insights: AIInsight[] }).insights)
+        setAiLastUpdated(new Date())
       }
+    } catch (err) {
+      console.error('AI INSIGHTS ERROR', err)
+    } finally {
+      setAiInsightsLoading(false)
     }
+  }
 
-    void fetchAI()
-    return () => {
-      cancelled = true
+  const handleToggleAI = async () => {
+    const next = !aiEnabled
+    setAiEnabled(next)
+    if (next && !aiInsights) {
+      await fetchAIInsights()
     }
-  }, [transactions, currency, user, session?.access_token, authLoading])
+  }
 
   function handleTransactionSaved(updated: Transaction) {
     const normalized = normalizeTransaction(updated)
@@ -726,14 +719,64 @@ export default function DashboardPage() {
       {listLoading ? (
         <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
-        <FinancialInsights
-          savingsInsights={savingsInsights}
-          expenseInsights={expenseInsights}
-          incomeInsights={incomeInsights}
-          recurringInsights={recurringInsights}
-          aiInsights={aiInsights}
-          aiLoading={aiInsightsLoading}
-        />
+        <div className="space-y-3">
+          {/* AI Insights control row */}
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium text-zinc-900 dark:text-zinc-100">AI Insights</h3>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  {aiEnabled
+                    ? 'Personalized analysis powered by AI'
+                    : 'Enable to generate personalized financial analysis'}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => { void handleToggleAI() }}
+                aria-label={aiEnabled ? 'Disable AI insights' : 'Enable AI insights'}
+                className={`relative inline-flex h-6 w-11 flex-shrink-0 items-center rounded-full transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-zinc-700 dark:focus-visible:ring-zinc-400 ${
+                  aiEnabled
+                    ? 'bg-emerald-500'
+                    : 'bg-zinc-300 dark:bg-zinc-600'
+                }`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-transform duration-200 ${
+                    aiEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+            </div>
+
+            {aiEnabled && (
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => { void fetchAIInsights() }}
+                  disabled={aiInsightsLoading}
+                  className="rounded-md bg-zinc-800 px-3 py-1 text-xs text-zinc-100 transition-colors duration-150 hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+                >
+                  {aiInsightsLoading ? 'Refreshing…' : 'Regenerate'}
+                </button>
+                {aiLastUpdated && (
+                  <span className="text-xs text-zinc-500 dark:text-zinc-400">
+                    Updated {aiLastUpdated.toLocaleTimeString()}
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+
+          <FinancialInsights
+            savingsInsights={savingsInsights}
+            expenseInsights={expenseInsights}
+            incomeInsights={incomeInsights}
+            recurringInsights={recurringInsights}
+            aiInsights={aiEnabled ? aiInsights : null}
+            aiLoading={aiEnabled ? aiInsightsLoading : false}
+          />
+        </div>
       )}
 
       {listLoading ? (
