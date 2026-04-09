@@ -1,129 +1,196 @@
-# FlowFi — Financial Intelligence Platform
+# FlowFi — AI-Powered Personal Finance OS
 
-**A modular web app to track spending, visualize patterns, and run practical financial tools—all backed by secure auth and data you own.**
+FlowFi is a production-style web app for people who want **one surface** for cash flow, categorization, and decisions—not another passive tracker.
 
 ---
 
-## Description
+## Overview
 
-FlowFi is a **financial intelligence platform** built for clarity, not noise. Users sign in, log transactions, and see **analytics**, **plain-language insights**, and a growing set of **decision tools**. A **CSV import** path lets you bring historical activity into the same pipeline your dashboard already uses—no separate spreadsheets required.
+FlowFi behaves like a **financial operating system**: your **transactions** feed analytics, **budget** context, a composite **health score**, and **AI insights** that react to how you actually spend. Imports (CSV and PDF) land in the same ledger as manual entries. The product goal is **clarity under auth**: your data stays tied to your account, scoped by Supabase **RLS**, with server routes for anything sensitive.
+
+**Why it exists:** spreadsheets and bank UIs optimize for institutions. FlowFi optimizes for a single user who wants premium UX (Stripe/Linear-level polish), honest tooling labels, and automation where it helps—**insights**, **categorization**, and **statement parsing**—without training models on your ledger.
 
 ---
 
 ## Features
 
-- **Expense tracking** — Create and list transactions tied to your account (CRUD-oriented flows).
-- **Analytics dashboard** — Summary cards, category and time-series **charts**, and month-over-month context.
-- **Financial insights** — Readable takeaways from your data (e.g. spending pace, category focus).
-- **Decision Engine** — **Affordability-style** analysis from income, spending, and a purchase amount.
-- **Rent vs Buy** — Simple rent totals vs. a stylized purchase-cost estimate over your planned horizon.
-- **Tax Estimator** — Illustrative **Indian slab** model with **per-slab breakdown** (educational only).
-- **Credit Score Simulator** — **Toy weighted model** from payment history, utilization, age, and mix (not FICO/Vantage/bureau logic).
-- **CSV transaction import** — Upload, **preview**, and batch-insert rows (`date`, `description`, `amount`) into `transactions`.
+### Core
+
+- **Transactions** — Manual create, edit, delete, bulk actions; list with filters and category-aware presentation.
+- **Analytics** — Month view, category mix, savings vs spend; drives the dashboard and **insights** context.
+- **Budget** — Monthly cap on **profiles**; compared to current-month expense totals.
+- **Financial health score** — Composite signal from ledger + **budget** (see `financial-health-score`).
+- **Import** — CSV pipeline with preview and validation; PDF path via extract + structured parse.
+
+### AI
+
+- **Insights** — On-demand **insights** from `POST /api/ai-insights` using OpenAI; cache keyed per user and month + analytics fingerprint.
+- **Categorization** — Keyword + memory-assisted categories; optional `POST /api/categorize` for AI-assisted labels when configured.
+- **Anomaly detection** — Rule-based signals (spikes, concentration, income drop, large purchases) fed into **insights** context.
+- **PDF parsing** — `POST /api/parse-file` extracts text and uses OpenAI to return structured rows for review before commit.
+
+### UX
+
+- Dark/light **system** appearance, responsive shell, accessible forms, charts with theme-aware grid lines.
+- Dedicated **tools** (tax estimator, rent vs buy, decision engine, credit score simulator) isolated from the core dashboard.
+- Session UX with idle awareness; rate limits on sensitive API routes.
 
 ---
 
-## Tech Stack
+## AI capabilities
 
-| Layer        | Technology |
-| ------------ | ---------- |
-| Frontend     | **Next.js** (App Router, React) |
-| Backend / DB | **Supabase** (Postgres, Auth, Row Level Security) |
-| Styling      | **Tailwind CSS** |
-| Charts       | **Recharts** |
-| CSV parsing  | **PapaParse** |
+| Capability | What happens |
+|------------|----------------|
+| **Insights** | Server builds an enriched summary (totals, top categories, spikes, optional anomalies). OpenAI returns structured JSON **insights**; weak phrasing is filtered; sparse data skips the API. |
+| **Anomaly detection** | Client-side `detectAnomalies` runs on the analytics bundle; results optionally inform the **insights** prompt—no black-box “magic score.” |
+| **Categorization** | Keywords, user **category memory** (local), and backfill normalization keep **transactions** consistent; AI categorization is an adjunct, not the source of truth. |
+| **PDF parsing** | pdf-parse extracts text; OpenAI maps lines to `{ date, description, amount, type }` for user review—data is not auto-saved until validated through your import flow. |
 
----
-
-## Architecture Overview
-
-- **Frontend:** Next.js client UI with route groups for the **app shell** (`/dashboard`, `/tools/*`) and **auth** pages (`/login`, `/signup`). Data flows through the Supabase JS client and React hooks/context where appropriate.
-- **Backend:** Supabase hosts **Postgres**, **Auth**, and API access from the browser using the **anon** key. **Row Level Security (RLS)** is assumed on `transactions` (and related tables) so each user only reads/writes **their own rows**.
-- **Modular tools:** Financial utilities live under **`/tools`** (e.g. tax, rent vs buy, decision engine, credit score simulator, CSV import)—each route is a focused surface so new tools can ship without rewiring the core dashboard.
+**Privacy:** User payloads are sent to OpenAI only for the routes you enable with `OPENAI_API_KEY`. FlowFi does not use your **transactions** to train foundation models; it invokes the API as a configured third-party service under your keys.
 
 ---
 
-## Key Highlights
+## Architecture
 
-- **Security-minded** — RLS-friendly design; secrets stay in env, not in the repo.
-- **Practical tooling** — Calculators and simulators aimed at real decisions, clearly labeled as illustrative where needed.
-- **Modular product shape** — Dashboard vs. tools vs. auth are separated for easier iteration.
-- **Import pipeline** — Validate and preview CSV data **before** it hits your ledger.
+```
+Browser (Next.js App Router)
+    ├─ Supabase Auth (anon client, session)
+    ├─ authedFetch → Route Handlers (/api/*)
+    │       └─ Bearer token → createSupabaseFromAccessToken → auth.getUser()
+    │       └─ Postgres via RLS-scoped client
+    └─ OpenAI (server-only): ai-insights, parse-file, categorize
+
+Supabase: Postgres + Auth + RLS on user-owned tables
+```
+
+See **[docs/architecture.md](./docs/architecture.md)** for a deeper pass.
 
 ---
 
-## Live Demo
+## Tech stack
 
-**[Add your deployment URL](https://example.com)** — *Replace with production or Vercel link when ready.*
+| Layer | Technology |
+|--------|------------|
+| App framework | **Next.js 16** (App Router, React 19) |
+| Auth & database | **Supabase** (Postgres, Auth, RLS) |
+| Styling | **Tailwind CSS v4** |
+| Charts | **Recharts** |
+| CSV | **PapaParse** |
+| PDF text | **pdf-parse** |
+| AI | **OpenAI** Chat Completions (HTTP) |
+| Motion / UI primitives | **Framer Motion**, **Radix**, **Sonner** |
 
 ---
 
 ## Screenshots
 
-| Area | Preview |
-| ---- | ------- |
-| Dashboard & analytics | *Coming soon — add image* |
-| Tools hub | *Coming soon — add image* |
-| Tax / import / credit sim | *Coming soon — add image* |
+Add PNG/WebP previews under **`public/screenshots/`** (e.g. `dashboard.png`, `tools.png`, `import.png`) and link them here when you want the README to pop on GitHub.
 
----
-
-## Getting Started
-
-### Prerequisites
-
-- Node.js **18+** (recommended: current LTS)
-- npm (or compatible package manager)
-- A [Supabase](https://supabase.com) project with Auth and tables your app expects (`profiles`, `transactions`, etc.)
-
-### Local setup
-
-```bash
-git clone https://github.com/vezudict/flowfi.git
-cd flowfi
-npm install
-npm run dev
-```
-
-Open **[http://localhost:3000](http://localhost:3000)**.
-
-### Build
-
-```bash
-npm run build
-npm start
+```text
+public/screenshots/
+  dashboard.png   — main ledger + charts + insights
+  tools.png       — tools index
+  import.png      — CSV / PDF import flow
 ```
 
 ---
 
-## Environment Variables
+## Setup
 
-Create **`.env.local`** in the project root (never commit it):
+1. **Clone**
 
-```env
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-```
+   ```bash
+   git clone https://github.com/vezudict/flowfi.git
+   cd flowfi
+   ```
 
-Use the **Project URL** and **anon public** key from the Supabase dashboard (**Settings → API**).
+2. **Install**
+
+   ```bash
+   npm install
+   ```
+
+3. **Environment** — Copy [`.env.example`](./.env.example) to `.env.local` and fill in values (see below).
+
+4. **Database** — Create a Supabase project; apply migrations under `supabase/migrations/` in order (or use the Supabase CLI if you use it for your workflow).
+
+5. **Run**
+
+   ```bash
+   npm run dev
+   ```
+
+   Open [http://localhost:3000](http://localhost:3000).
+
+6. **Production build**
+
+   ```bash
+   npm run build
+   npm start
+   ```
 
 ---
 
-## Future Improvements
+## Environment variables
 
-- **AI-based insights** — Deeper, personalized narratives from transaction history.
-- **PDF statement parsing** — Ingest bank exports beyond CSV.
-- **Auto categorization** — Rules or ML-assisted category assignment.
-- **Financial health score** — A single signal users can track over time.
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `NEXT_PUBLIC_SUPABASE_URL` | **Yes** | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | **Yes** | Supabase anon (public) key |
+| `OPENAI_API_KEY` | For AI routes | **Insights**, PDF parse, categorize |
+| `OPENAI_MODEL` | No | Overrides default chat model (e.g. `gpt-4o-mini`) |
+| `NEXT_PUBLIC_DEBUG_FLOWFI_TX` | No | Set to `1` for verbose transaction/debug logging in dev |
+
+Never commit `.env.local`. Use **`.env.example`** as the template only.
+
+---
+
+## Data & security
+
+- **RLS** — `ai_insights_cache` policies in migrations scope rows by `auth.uid()`. Your `transactions` and **profiles** tables should follow the same pattern in your Supabase project so users only read/write their own data.
+- **API** — Mutations and AI routes expect `Authorization: Bearer <access_token>`; the server verifies the user with `supabase.auth.getUser()` and does not trust client-supplied user IDs for authorization.
+- **Rate limits** — Selected routes use in-memory fixed windows (per IP / per user) to limit abuse.
+- **Training** — FlowFi does not ship user **transactions** to OpenAI for model training; it uses request/response APIs you configure.
+
+Details: **[docs/database.md](./docs/database.md)**.
+
+---
+
+## Project structure
+
+| Path | Role |
+|------|------|
+| `src/app/` | Routes: landing, auth, `(app)` dashboard, **tools**, API route handlers |
+| `src/components/` | UI: layout, dashboard cards, **transactions** list/modals, import client |
+| `src/lib/` | Analytics, **insights**, categories, formatters, Supabase helpers, validation |
+| `src/contexts/` | Auth and related providers |
+| `supabase/migrations/` | SQL for **profiles**, **transactions**, **insights** cache |
+| `public/` | Static assets; add **`screenshots/`** for README images |
+
+---
+
+## Roadmap
+
+- Bank-linking or OFX (if you want regulated-grade ingestion).
+- Multi-account / multi-currency ledgers beyond display currency.
+- Export (CSV/Sheets) from filtered **transactions**.
+- Deeper **budget** envelopes and roll-ups.
+- Optional self-hosted or regional AI backends for enterprises.
+
+---
+
+## Contributing
+
+Issues and PRs welcome. Keep changes focused; match existing patterns for **transactions**, API auth, and Tailwind tokens. Update **`code-map.md`** when you add major routes or libraries.
 
 ---
 
 ## Disclaimer
 
-FlowFi is **not financial, tax, or legal advice**. All numbers, calculators, and tax outputs are **approximate, simplified, or illustrative**—including the tax slabs, credit score **simulator** (not bureau-grade), and import mapping—**inappropriate substitutes** for a qualified professional, lender, or official filing rules. Use at your own discretion.
+FlowFi is **not** financial, tax, or legal advice. Calculators and **insights** are illustrative. The credit score path is a **simulator**, not a bureau score.
 
 ---
 
 ## License
 
-This project is provided as-is for demonstration and learning. Add a `LICENSE` file if you plan to open-source under specific terms.
+[MIT](./LICENSE)

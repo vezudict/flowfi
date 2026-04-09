@@ -5,6 +5,22 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 
 ---
 
+## Repository documentation layer
+
+Human-facing product and technical docs for FlowFi (recruiter- and OSS-friendly):
+
+| Asset | Purpose |
+|-------|---------|
+| `README.md` | Product overview, features, **tech stack**, setup, env vars, structure, roadmap, license pointer |
+| `docs/architecture.md` | System design: auth, API routes, AI vs DB boundaries, security notes |
+| `docs/ai.md` | **Insights**, PDF parse, categorization — how OpenAI is used server-side |
+| `docs/database.md` | `profiles`, **transactions**, `ai_insights_cache`, **RLS** expectations |
+| `.env.example` | Safe template for `NEXT_PUBLIC_*`, `OPENAI_*`, optional debug flags (copy → `.env.local`) |
+| `LICENSE` | MIT |
+| `public/screenshots/` | Drop README screenshots here (`dashboard.png`, etc.) |
+
+---
+
 ## Core Logic
 
 | Path | Does | Affects / relates to |

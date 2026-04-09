@@ -80,6 +80,13 @@ export const codeMap = {
     'src/components/tools/PdfBankStatementUpload.tsx',
   ],
   contexts: ['src/contexts/auth-context.tsx', 'src/contexts/currency-context.tsx'],
+  documentation: {
+    readme: 'README.md',
+    architecture: 'docs/architecture.md',
+    ai: 'docs/ai.md',
+    database: 'docs/database.md',
+    envExample: '.env.example',
+  },
   migrationsGlob: 'supabase/migrations/*.sql',
 } as const
 
