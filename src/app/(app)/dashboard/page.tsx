@@ -430,15 +430,31 @@ export default function DashboardPage() {
   }, [user, loadDashboard])
 
   const fetchAIInsights = async () => {
-    if (!transactions || transactions.length === 0) return
+    console.log('🟡 BUTTON CLICKED → fetching AI insights')
+
+    if (!transactions || transactions.length === 0) {
+      console.log('❌ No transactions, skipping AI')
+      return
+    }
+
     setAiInsightsLoading(true)
+
     try {
       const analyticsSnapshot = computeAnalytics(transactions)
+
+      console.log('📦 Sending analytics:', analyticsSnapshot)
+
       const res = await authedFetch('/api/ai-insights', {
         method: 'POST',
         json: { analytics: analyticsSnapshot, currency },
       })
+
+      console.log('📡 API response status:', res.status)
+
       const data: unknown = await res.json()
+
+      console.log('🧠 AI RESPONSE:', data)
+
       if (
         res.ok &&
         data &&
@@ -450,7 +466,7 @@ export default function DashboardPage() {
         setAiLastUpdated(new Date())
       }
     } catch (err) {
-      console.error('AI INSIGHTS ERROR', err)
+      console.error('🔥 AI ERROR:', err)
     } finally {
       setAiInsightsLoading(false)
     }

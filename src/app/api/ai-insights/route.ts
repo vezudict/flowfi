@@ -84,6 +84,7 @@ function isAIInsightArray(items: unknown[]): items is AIInsight[] {
 
 export async function POST(request: Request) {
   try {
+    console.log('🚀 API HIT: /api/ai-insights')
     const token = getBearerToken(request)
     const auth = await requireUserFromBearer(token)
     if (!auth) {
@@ -111,6 +112,9 @@ export async function POST(request: Request) {
     if (!analytics || typeof analytics !== 'object') {
       return NextResponse.json({ error: 'analytics required' }, { status: 400 })
     }
+
+    console.log('📊 Incoming analytics:', analytics)
+    console.log('🤖 Using model:', process.env.OPENAI_MODEL || 'gpt-4o-mini')
 
     const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
     // Cache key includes analytics hash so insights refresh when spending changes
