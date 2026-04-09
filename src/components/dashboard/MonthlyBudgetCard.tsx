@@ -70,16 +70,15 @@ export function MonthlyBudgetCard({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/40">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent dark:from-indigo-400/[0.04]" />
-      <div className="relative">
+    <section className="rounded-xl border border-zinc-200 bg-white/80 p-4 backdrop-blur-sm transition-all duration-200 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
+      <div>
         <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               Monthly budget
             </h2>
-            <p className="text-xs text-zinc-500/85 dark:text-zinc-400/85">
-              Compared to spending in {monthLabel}. Resets each calendar month automatically.
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              Compared to spending in {monthLabel}. Resets each calendar month.
             </p>
           </div>
         </div>
@@ -158,7 +157,7 @@ export function MonthlyBudgetCard({
           <button
             type="submit"
             disabled={saving}
-            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-indigo-700 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             {saving ? (
               <>

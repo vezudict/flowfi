@@ -81,7 +81,7 @@ export function LandingNavbar() {
           <div className="flex items-center gap-2">
             <Link
               href="/dashboard"
-              className="rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-zinc-900 transition-[transform,background-color] duration-150 hover:bg-zinc-100 active:scale-[0.97]"
+              className="rounded-lg bg-white px-3.5 py-2 text-sm font-semibold text-zinc-900 transition-[transform,background-color] duration-150 hover:bg-zinc-100 active:scale-95"
               onClick={() => setMobileOpen(false)}
             >
               {user ? 'Go to Dashboard' : 'Get Started'}
@@ -92,7 +92,7 @@ export function LandingNavbar() {
               onClick={() => setMobileOpen((o) => !o)}
               aria-expanded={mobileOpen}
               aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
-              className="rounded-lg p-2 text-zinc-400 transition-[transform,color] duration-150 hover:bg-zinc-800 hover:text-zinc-100 active:scale-[0.97] md:hidden"
+              className="rounded-lg p-2 text-zinc-400 transition-[transform,color] duration-150 hover:bg-zinc-800 hover:text-zinc-100 active:scale-95 md:hidden"
             >
               {mobileOpen ? <IconClose /> : <IconMenu />}
             </button>

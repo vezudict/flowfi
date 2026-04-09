@@ -69,7 +69,7 @@ export function CTASection() {
                 shadow-[0_0_0_1px_rgba(255,255,255,0.12)]
                 transition-shadow duration-300
                 hover:shadow-[0_0_32px_6px_rgba(255,255,255,0.12)]
-                active:scale-[0.97]
+                active:scale-95
               "
             >
               Get Started

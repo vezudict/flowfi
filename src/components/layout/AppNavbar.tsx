@@ -59,7 +59,7 @@ export function AppNavbar() {
               onClick={() => setMobileOpen((o) => !o)}
               aria-expanded={mobileOpen}
               aria-label={mobileOpen ? 'Close navigation' : 'Open navigation'}
-              className="rounded-lg p-2 text-zinc-500 transition-[transform,color] duration-150 hover:bg-zinc-200/80 hover:text-zinc-900 active:scale-[0.97] lg:hidden dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
+              className="rounded-lg p-2 text-zinc-500 transition-[transform,color] duration-150 hover:bg-zinc-200/80 hover:text-zinc-900 active:scale-95 lg:hidden dark:text-zinc-400 dark:hover:bg-zinc-800 dark:hover:text-zinc-100"
             >
               {mobileOpen ? <IconClose /> : <IconMenu />}
             </button>
@@ -94,7 +94,7 @@ export function AppNavbar() {
                 <Link
                   href="/settings"
                   aria-label="Settings"
-                  className={`rounded-lg p-2 transition-[transform,opacity,color] duration-150 hover:opacity-80 active:scale-[0.97] ${
+                  className={`rounded-lg p-2 transition-[transform,opacity,color] duration-150 hover:opacity-80 active:scale-95 ${
                     settingsActive(pathname)
                       ? 'text-indigo-600 dark:text-indigo-400'
                       : 'text-zinc-500 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100'
@@ -106,7 +106,7 @@ export function AppNavbar() {
                   type="button"
                   onClick={() => void handleSignOut()}
                   disabled={signingOut}
-                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-all duration-150 ease-in-out hover:text-zinc-900 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
+                  className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-zinc-600 transition-all duration-150 ease-in-out hover:text-zinc-900 active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:px-3 dark:text-zinc-400 dark:hover:text-zinc-100"
                 >
                   {signingOut ? (
                     <>

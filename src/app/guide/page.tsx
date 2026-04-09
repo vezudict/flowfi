@@ -144,7 +144,7 @@ export default function GuidePage() {
                 </p>
                 <a
                   href="/dashboard"
-                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition-[transform,background-color] duration-150 hover:bg-white active:scale-[0.97]"
+                  className="mt-5 inline-flex items-center gap-2 rounded-lg bg-zinc-100 px-5 py-2.5 text-sm font-semibold text-zinc-900 transition-[transform,background-color] duration-150 hover:bg-white active:scale-95"
                 >
                   Go to Dashboard
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>

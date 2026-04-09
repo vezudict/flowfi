@@ -155,7 +155,7 @@ export function RentVsBuyClient() {
 
         <button
           type="submit"
-          className="mt-6 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
+          className="mt-6 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-95 dark:bg-indigo-500 dark:hover:bg-indigo-400"
         >
           Compare
         </button>

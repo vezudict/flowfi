@@ -12,6 +12,7 @@ type FinancialInsightsProps = {
   aiInsights?: AIInsight[] | null
   aiAnomalies?: Anomaly[] | null
   aiLoading?: boolean
+  aiEnabled?: boolean
 }
 
 function InsightSection({
@@ -30,7 +31,7 @@ function InsightSection({
       <ul className="mt-3 space-y-2.5" role="list">
         {insights.map((insight) => (
           <li key={insight.id}>
-            <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80 dark:text-zinc-300">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 text-sm leading-relaxed text-zinc-700 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-300">
               {insight.text}
             </div>
           </li>
@@ -95,7 +96,7 @@ function AIInsightCard({ insight }: { insight: AIInsight }) {
   return (
     <li>
       <div
-        className={`group rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-4 shadow-sm transition-all duration-200 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-950/80 ${CARD_GLOW[insight.type]}`}
+        className={`group rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-4 transition-all duration-200 hover:-translate-y-px dark:border-zinc-800 dark:bg-zinc-800/40 ${CARD_GLOW[insight.type]}`}
       >
         {/* Top row: icon + type badge + priority badge */}
         <div className="flex items-center gap-2">
@@ -164,10 +165,10 @@ function AnomalyCard({ anomaly }: { anomaly: Anomaly }) {
   return (
     <li>
       <div
-        className={`rounded-xl border px-4 py-3.5 shadow-sm ${
+        className={`rounded-lg border px-4 py-3.5 transition-all duration-200 hover:-translate-y-px ${
           anomaly.severity === 'high'
-            ? 'border-red-200/70 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
-            : 'border-amber-200/70 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
+            ? 'border-red-200 bg-red-50/60 dark:border-red-900/40 dark:bg-red-950/20'
+            : 'border-amber-200 bg-amber-50/60 dark:border-amber-900/40 dark:bg-amber-950/20'
         }`}
       >
         <div className="flex items-center gap-2">
@@ -218,7 +219,7 @@ function AIInsightSkeleton() {
       <ul className="mt-3 space-y-2.5">
         {[1, 2, 3].map((n) => (
           <li key={n}>
-            <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-4 shadow-sm dark:border-zinc-800 dark:bg-zinc-950/80">
+            <div className="rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-4 dark:border-zinc-800 dark:bg-zinc-800/40">
               {/* Badge row skeleton */}
               <div className="flex gap-2">
                 <div className="h-5 w-5 animate-pulse rounded bg-zinc-200 dark:bg-zinc-700" />
@@ -248,6 +249,7 @@ export function FinancialInsights({
   aiInsights,
   aiAnomalies,
   aiLoading = false,
+  aiEnabled = false,
 }: FinancialInsightsProps) {
   const total =
     savingsInsights.length +
@@ -256,15 +258,13 @@ export function FinancialInsights({
     recurringInsights.length
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-zinc-200/80 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:scale-[1.01] hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/40 dark:hover:shadow-zinc-950/80">
-      <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.03] to-transparent dark:from-indigo-400/[0.04]" />
-      <div className="relative">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Financial insights
+    <section className="rounded-xl border border-zinc-200 bg-white/80 p-4 backdrop-blur-sm transition-all duration-200 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900/60">
+      <div>
+        <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+          Financial Insights
         </h2>
-        <p className="mt-1 text-xs text-zinc-500/80 dark:text-zinc-400/80">
-          Spending uses debits only (category "income" excluded). Income uses credits. Savings = income
-          minus expenses.
+        <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+          Spending uses debits only. Income uses credits. Savings = income minus expenses.
         </p>
 
         {total === 0 ? (
@@ -275,13 +275,12 @@ export function FinancialInsights({
             <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">
               No insights yet
             </p>
-            <p className="mt-2 text-sm leading-relaxed text-zinc-500/90 dark:text-zinc-400/85">
-              Add debits for spending and credits for income to see savings, spending, and income
-              insights.
+            <p className="mt-2 text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">
+              Add debits for spending and credits for income to see insights.
             </p>
             <Link
               href="#add-transaction"
-              className="mt-5 inline-flex rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
+              className="mt-5 inline-flex rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 hover:bg-indigo-700 active:scale-95 dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               Add transaction
             </Link>
@@ -290,10 +289,21 @@ export function FinancialInsights({
           <div className="mt-2">
             <InsightSection title="Savings" insights={savingsInsights} />
 
-            {/* Anomalies: shown when AI is enabled and anomalies detected */}
-            {!aiLoading && aiAnomalies && aiAnomalies.length > 0 && (
+            {/* Anomalies: shown when AI is enabled */}
+            {!aiLoading && aiAnomalies !== null && aiAnomalies !== undefined && (
               <div className="animate-fade-in">
-                <AnomalySection anomalies={aiAnomalies} />
+                {aiAnomalies.length > 0 ? (
+                  <AnomalySection anomalies={aiAnomalies} />
+                ) : (
+                  <div className="mt-5">
+                    <h3 className="text-xs font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                      Anomalies
+                    </h3>
+                    <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50/80 px-4 py-3.5 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-800/40 dark:text-zinc-400">
+                      No unusual activity detected this month.
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -306,6 +316,15 @@ export function FinancialInsights({
               </div>
             ) : (
               <InsightSection title="Spending" insights={expenseInsights} />
+            )}
+
+            {/* AI teaser — shown when AI is disabled */}
+            {!aiEnabled && !aiLoading && (
+              <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50/60 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-800/30">
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">
+                  <span className="font-medium text-zinc-700 dark:text-zinc-300">Enable AI Insights</span> to get personalized financial analysis.
+                </p>
+              </div>
             )}
 
             <InsightSection title="Income" insights={incomeInsights} />

@@ -4,9 +4,8 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { Check, Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
+import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
-import { CategoryPieChart } from '@/components/dashboard/CategoryPieChart'
-import { SpendingBarChart } from '@/components/dashboard/SpendingBarChart'
 import { FinancialHealthCard } from '@/components/dashboard/FinancialHealthCard'
 import { FinancialInsights } from '@/components/dashboard/FinancialInsights'
 import { MonthlyBudgetCard } from '@/components/dashboard/MonthlyBudgetCard'
@@ -55,6 +54,16 @@ import {
   type Transaction,
 } from '@/lib/transactions'
 import { toast } from 'sonner'
+
+// Lazy-load heavy chart components to reduce initial bundle
+const CategoryPieChart = dynamic(
+  () => import('@/components/dashboard/CategoryPieChart').then((m) => ({ default: m.CategoryPieChart })),
+  { ssr: false, loading: () => <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" /> },
+)
+const SpendingBarChart = dynamic(
+  () => import('@/components/dashboard/SpendingBarChart').then((m) => ({ default: m.SpendingBarChart })),
+  { ssr: false, loading: () => <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" /> },
+)
 
 type SelectableTransactionRowProps = {
   tx: Transaction
@@ -195,7 +204,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
             <button
               type="button"
               onClick={() => onEdit(tx.id)}
-              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-[0.97] dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
+              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-zinc-100/90 hover:text-indigo-600 active:scale-95 dark:hover:bg-zinc-800/80 dark:hover:text-indigo-400"
               aria-label={`Edit transaction ${categoryLabel}`}
             >
               <Pencil className="h-4 w-4" aria-hidden />
@@ -204,7 +213,7 @@ const SelectableTransactionRow = memo(function SelectableTransactionRow({
               type="button"
               onClick={() => onDelete(tx.id)}
               disabled={deleteSubmitting && pendingDeleteId === tx.id}
-              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-[0.97] dark:hover:bg-red-950/40 dark:hover:text-red-400"
+              className="rounded-lg p-2 text-zinc-500 transition-colors duration-150 hover:bg-red-50 hover:text-red-600 disabled:opacity-50 active:scale-95 dark:hover:bg-red-950/40 dark:hover:text-red-400"
               aria-label={`Delete transaction ${categoryLabel}`}
             >
               <Trash2 className="h-4 w-4" aria-hidden />
@@ -230,17 +239,17 @@ function DashboardLoadingSkeleton() {
         {[1, 2, 3, 4].map((i) => (
           <div
             key={i}
-            className="h-[116px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800"
+            className="h-[116px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800"
           />
         ))}
       </div>
-      <div className="h-48 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
-      <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+      <div className="h-48 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+      <div className="h-40 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
       <div className="grid gap-4 lg:grid-cols-2">
-        <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
-        <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
       </div>
-      <div className="h-[420px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+      <div className="h-[420px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
     </div>
   )
 }
@@ -262,6 +271,15 @@ export default function DashboardPage() {
   const [bulkDeleteIds, setBulkDeleteIds] = useState<string[] | null>(null)
   const [bulkDeleteSubmitting, setBulkDeleteSubmitting] = useState(false)
   const [txFilters, setTxFilters] = useState<TransactionFilterState>(emptyTransactionFilters)
+  const [searchInput, setSearchInput] = useState('')
+
+  // Debounce search input 300ms
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setTxFilters((f) => ({ ...f, search: searchInput }))
+    }, 300)
+    return () => clearTimeout(timer)
+  }, [searchInput])
 
   const [amount, setAmount] = useState('')
   const [category, setCategory] = useState('')
@@ -658,6 +676,16 @@ export default function DashboardPage() {
     return <DashboardLoadingSkeleton />
   }
 
+  function humanizeTime(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000)
+    if (seconds < 10) return 'just now'
+    if (seconds < 60) return `${seconds}s ago`
+    const mins = Math.floor(seconds / 60)
+    if (mins === 1) return '1 min ago'
+    if (mins < 60) return `${mins} mins ago`
+    return date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  }
+
   const monthLabel = new Date().toLocaleString(undefined, {
     month: 'long',
     year: 'numeric',
@@ -679,12 +707,12 @@ export default function DashboardPage() {
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="h-[116px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800"
+              className="h-[116px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800"
             />
           ))}
         </div>
       ) : (
-        <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <section className="animate-fade-in grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
           <SummaryCard
             title="Spending · this month"
             value={formatCurrency(analytics.currentMonthTotal, currency)}
@@ -722,7 +750,7 @@ export default function DashboardPage() {
       )}
 
       {listLoading ? (
-        <div className="h-48 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-48 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
         <MonthlyBudgetCard
           monthLabel={monthLabel}
@@ -734,13 +762,13 @@ export default function DashboardPage() {
       )}
 
       {listLoading ? (
-        <div className="h-44 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-44 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
         <FinancialHealthCard result={financialHealth} />
       )}
 
       {listLoading ? (
-        <div className="h-40 animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+        <div className="h-40 animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
       ) : (
         <div className="space-y-3">
           {/* AI Insights control row */}
@@ -784,7 +812,7 @@ export default function DashboardPage() {
                 </button>
                 {aiLastUpdated && (
                   <span className="text-xs text-zinc-500 dark:text-zinc-400">
-                    Updated {aiLastUpdated.toLocaleTimeString()}
+                    Updated {humanizeTime(aiLastUpdated)}
                   </span>
                 )}
               </div>
@@ -799,14 +827,15 @@ export default function DashboardPage() {
             aiInsights={aiEnabled ? aiInsights : null}
             aiAnomalies={aiEnabled ? aiAnomalies : null}
             aiLoading={aiEnabled ? aiInsightsLoading : false}
+            aiEnabled={aiEnabled}
           />
         </div>
       )}
 
       {listLoading ? (
         <section className="grid gap-4 lg:grid-cols-2">
-          <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
-          <div className="h-[320px] animate-pulse rounded-2xl bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
+          <div className="h-[320px] animate-pulse rounded-xl bg-zinc-200 dark:bg-zinc-800" />
         </section>
       ) : (
         <section className="space-y-4">
@@ -884,16 +913,15 @@ export default function DashboardPage() {
 
       <div
         id="add-transaction"
-        className="relative scroll-mt-24 rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/70 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50"
+        className="scroll-mt-24 rounded-xl border border-zinc-200 bg-white/80 backdrop-blur-sm transition-all duration-200 dark:border-zinc-800 dark:bg-zinc-900/60"
       >
-        <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
-        <div className="relative border-b border-zinc-100 px-4 py-4 sm:px-6 dark:border-zinc-800">
-          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+        <div className="border-b border-zinc-100 px-4 py-4 sm:px-6 dark:border-zinc-800">
+          <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
             Add transaction
           </h2>
         </div>
 
-        <div className="relative px-4 py-5 sm:px-6 sm:py-6">
+        <div className="px-4 py-5 sm:px-6 sm:py-6">
           {error ? (
             <div
               className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
@@ -1006,7 +1034,7 @@ export default function DashboardPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-indigo-600 px-6 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
             >
               {submitting ? (
                 <>
@@ -1020,9 +1048,9 @@ export default function DashboardPage() {
           </form>
         </div>
 
-        <div className="relative border-t border-zinc-100 px-4 py-5 sm:px-6 dark:border-zinc-800">
+        <div className="border-t border-zinc-200 px-4 py-5 sm:px-6 dark:border-zinc-800">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               Recent activity
             </h2>
             {!listLoading && transactions.length > 0 ? (
@@ -1038,7 +1066,7 @@ export default function DashboardPage() {
           </div>
 
           {!listLoading && transactions.length > 0 ? (
-            <div className="mt-4 space-y-2 rounded-lg border border-zinc-200/70 bg-zinc-100/40 p-3 dark:border-zinc-700/50 dark:bg-white/[0.05] sm:p-3">
+            <div className="mt-4 space-y-2 rounded-lg border border-zinc-200 bg-zinc-50/80 p-3 dark:border-zinc-800 dark:bg-zinc-800/40 sm:p-3">
               <div className="relative">
                 <Search
                   className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-zinc-400"
@@ -1046,10 +1074,8 @@ export default function DashboardPage() {
                 />
                 <input
                   type="search"
-                  value={txFilters.search}
-                  onChange={(e) =>
-                    setTxFilters((f) => ({ ...f, search: e.target.value }))
-                  }
+                  value={searchInput}
+                  onChange={(e) => setSearchInput(e.target.value)}
                   placeholder="Search description…"
                   className={`${inputClass} pl-9`}
                   aria-label="Search transactions"
@@ -1113,8 +1139,8 @@ export default function DashboardPage() {
                   {activeFilterCount > 0 ? (
                     <button
                       type="button"
-                      onClick={() => setTxFilters(emptyTransactionFilters)}
-                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-all duration-150 ease-in-out hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:w-auto"
+                      onClick={() => { setTxFilters(emptyTransactionFilters); setSearchInput('') }}
+                      className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700 transition-all duration-150 ease-in-out hover:bg-zinc-50 active:scale-95 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800 sm:w-auto"
                     >
                       <X className="h-4 w-4" aria-hidden />
                       Clear filters
@@ -1145,39 +1171,47 @@ export default function DashboardPage() {
             </div>
           ) : listError ? (
             <p className="mt-4 text-sm text-red-600 dark:text-red-400" role="alert">
-              {listError}
+              Something went wrong loading transactions. Please refresh.
             </p>
           ) : transactions.length === 0 ? (
-            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-12 text-center dark:border-zinc-700/80">
+            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-12 text-center dark:border-zinc-700">
               <div className="flex h-12 w-12 items-center justify-center rounded-full bg-zinc-100 text-zinc-400 dark:bg-zinc-800 dark:text-zinc-500">
                 <Receipt className="h-6 w-6" aria-hidden />
               </div>
               <p className="mt-4 text-sm font-medium text-zinc-800 dark:text-zinc-200">
-                Start by adding your first transaction
+                No transactions yet
               </p>
-              <p className="mt-2 max-w-xs text-sm text-zinc-500/90 dark:text-zinc-400/85">
-                Your ledger stays empty until you add a row. You can also import a CSV from Tools.
+              <p className="mt-2 max-w-xs text-sm text-zinc-500 dark:text-zinc-400">
+                Import a statement or add your first transaction.
               </p>
-              <Link
-                href="#add-transaction"
-                className="mt-5 inline-flex rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white transition-all duration-150 ease-in-out hover:bg-indigo-700 active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
-              >
-                Add transaction
-              </Link>
+              <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  href="#add-transaction"
+                  className="inline-flex rounded-lg bg-indigo-600 px-4 py-2 text-sm font-medium text-white transition-all duration-150 hover:bg-indigo-700 active:scale-95 dark:bg-indigo-500 dark:hover:bg-indigo-400"
+                >
+                  Add transaction
+                </Link>
+                <Link
+                  href="/tools/import-transactions"
+                  className="inline-flex rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition-all duration-150 hover:bg-zinc-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
+                >
+                  Import statement
+                </Link>
+              </div>
             </div>
           ) : filteredTransactions.length === 0 ? (
-            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-10 text-center dark:border-zinc-700/80">
+            <div className="mt-4 flex flex-col items-center justify-center rounded-xl border border-dashed border-zinc-200 px-6 py-10 text-center dark:border-zinc-700">
               <p className="text-sm font-medium text-zinc-800 dark:text-zinc-200">
                 No matches
               </p>
-              <p className="mt-2 max-w-sm text-center text-sm text-zinc-500/90 dark:text-zinc-400/85">
+              <p className="mt-2 max-w-sm text-center text-sm text-zinc-500 dark:text-zinc-400">
                 Nothing in your ledger matches these filters. Try widening the date range or
                 clearing search.
               </p>
               <button
                 type="button"
-                onClick={() => setTxFilters(emptyTransactionFilters)}
-                className="mt-4 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 active:scale-[0.98] dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                onClick={() => { setTxFilters(emptyTransactionFilters); setSearchInput('') }}
+                className="mt-4 rounded-lg border border-zinc-300 bg-white px-4 py-2 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 active:scale-95 dark:border-zinc-600 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
               >
                 Clear filters
               </button>
@@ -1249,7 +1283,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={openBulkDeleteModal}
                   disabled={bulkDeleteSubmitting}
-                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600/95 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-rose-600/90 dark:hover:bg-rose-500/95"
+                  className="inline-flex items-center justify-center gap-2 rounded-lg bg-rose-600/95 px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition-all duration-200 ease-out hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 dark:bg-rose-600/90 dark:hover:bg-rose-500/95"
                 >
                   <Trash2 className="h-3.5 w-3.5 shrink-0 opacity-95" aria-hidden />
                   Delete
@@ -1282,7 +1316,7 @@ export default function DashboardPage() {
               type="button"
               disabled={bulkDeleteSubmitting}
               onClick={closeBulkDeleteModal}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
               Cancel
             </button>
@@ -1290,7 +1324,7 @@ export default function DashboardPage() {
               type="button"
               disabled={bulkDeleteSubmitting}
               onClick={() => void confirmBulkDelete()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 dark:bg-red-600 dark:hover:bg-red-500"
             >
               {bulkDeleteSubmitting ? (
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
@@ -1313,7 +1347,7 @@ export default function DashboardPage() {
               type="button"
               disabled={deleteSubmitting}
               onClick={closeDeleteModal}
-              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-[0.98] dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+              className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 transition-all duration-150 hover:bg-zinc-50 disabled:opacity-50 active:scale-95 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
             >
               Cancel
             </button>
@@ -1321,7 +1355,7 @@ export default function DashboardPage() {
               type="button"
               disabled={deleteSubmitting}
               onClick={() => void confirmPendingDelete()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-red-600 dark:hover:bg-red-500"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95 dark:bg-red-600 dark:hover:bg-red-500"
             >
               {deleteSubmitting ? (
                 <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />

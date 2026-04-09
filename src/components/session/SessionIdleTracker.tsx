@@ -127,7 +127,7 @@ export function SessionIdleTracker() {
           <button
             type="button"
             onClick={extendSession}
-            className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-500 active:scale-[0.98] sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
+            className="inline-flex w-full shrink-0 items-center justify-center rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-500 active:scale-95 sm:w-auto dark:bg-indigo-500 dark:hover:bg-indigo-400"
           >
             Stay logged in
           </button>
