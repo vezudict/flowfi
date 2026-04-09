@@ -68,9 +68,7 @@ Return ONLY a valid JSON array in this exact shape:
   }
 ]`
 
-  if (process.env.NODE_ENV === 'development') {
-    console.log('AI MODEL USED:', MODEL)
-  }
+  console.log('AI MODEL USED:', MODEL)
 
   try {
     const response = await fetch(OPENAI_CHAT_URL, {
