@@ -79,6 +79,7 @@ export async function POST(request: Request) {
     }
 
     const key = monthKey(new Date())
+    const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
 
     // Cache read
     const { data: cached } = await supabase
@@ -93,13 +94,12 @@ export async function POST(request: Request) {
       // Only serve cache if it contains structured AIInsight objects (not legacy string[])
       const insights = Array.isArray(raw) && raw.length > 0 && isAIInsightArray(raw) ? raw : null
       if (insights) {
-        return NextResponse.json({ insights, cached: true })
+        return NextResponse.json({ insights, cached: true, debug_model: MODEL })
       }
     }
 
     // Generate fresh
     const summary = buildSummary(analytics, currency)
-    const MODEL = process.env.OPENAI_MODEL || 'gpt-4o-mini'
     console.log('🔥 AI MODEL USED:', MODEL)
     const insights = await generateAIInsights(summary, MODEL)
 
@@ -109,7 +109,7 @@ export async function POST(request: Request) {
       { onConflict: 'user_id,month_key' },
     )
 
-    return NextResponse.json({ insights, cached: false })
+    return NextResponse.json({ insights, cached: false, debug_model: MODEL })
   } catch (err) {
     console.error('AI ROUTE ERROR', err)
     return Response.json({ error: String(err) }, { status: 500 })
