@@ -30,7 +30,7 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/lib/rent-vs-buy.ts` | Rent vs buy projections | Rent vs buy tool |
 | `src/lib/decision-engine.ts` | Decision engine rules / outputs | Decision tool |
 | `src/lib/csv-transactions.ts` | Parse/normalize CSV rows for import | Import tool, API import |
-| `src/lib/parse-transactions-from-text.ts` | Regex PDF text → transaction candidates; **`detectCategoryWithFallback`** calls shared **`detectCategory`** from `category-suggestion` (raw + UPI-stripped description) | PDF pipeline, preview; import confirm still uses **`resolvePdfImportCategory`** |
+| `src/lib/parse-transactions-from-text.ts` | Date utilities (`parsePdfStatementDateToIso`, `formatTodayPdfStatementDate`) used by PDF editable preview in `ImportTransactionsClient`; regex parser kept for reference but no longer primary path | PDF preview |
 | `src/lib/transactions.ts` | Client fetch/delete helpers; `Transaction` type; **`fetchTransactionsForUser`** maps rows through **`normalizeTransaction`** (soft backfill, post-fetch only) | Dashboard, modals |
 | `src/lib/authed-api.ts` | Bearer `fetch` + JSON helpers | Client → API routes |
 | `src/lib/supabase-server.ts` | Service role / user from token for Route Handlers | All `api/*` mutations |
@@ -102,8 +102,8 @@ Structured overview for humans and AI: **where logic lives**, **where UI renders
 | `src/components/tools/TaxEstimatorClient.tsx` | Tax estimator UI |
 | `src/components/tools/DecisionEngineClient.tsx` | Decision engine UI |
 | `src/components/tools/RentVsBuyClient.tsx` | Rent vs buy UI |
-| `src/components/tools/ImportTransactionsClient.tsx` | CSV import UI + API |
-| `src/components/tools/PdfBankStatementUpload.tsx` | PDF upload → parse flow |
+| `src/components/tools/ImportTransactionsClient.tsx` | **Unified import UI**: single upload area for CSV+PDF; both paths produce `ParsedTransaction[]` fed into one **editable preview table**. CSV→`parseTransactionCsvFile`→convert to rows; PDF→POST `/api/parse-file`→AI-extracted rows. `parseSource` (`'csv'`\|`'ai'`) drives copy differences. Single `onPdfImport` confirm path for both. |
+| `src/components/tools/PdfBankStatementUpload.tsx` | Legacy PDF upload component (superseded by unified `ImportTransactionsClient`) |
 
 ### Landing & guide
 
@@ -157,7 +157,8 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 | `src/app/api/transactions/[id]/route.ts` | PATCH update transaction |
 | `src/app/api/transactions/bulk/route.ts` | DELETE bulk |
 | `src/app/api/transactions/import/route.ts` | POST CSV (validated rows) |
-| `src/app/api/parse-pdf/route.ts` | PDF → extracted text / parse |
+| `src/app/api/parse-pdf/route.ts` | Legacy: PDF → raw extracted text (deprecated; use `/api/parse-file`) |
+| `src/app/api/parse-file/route.ts` | **PDF AI parser** (auth + rate-limit): pdf-parse → OpenAI → `{ transactions: ParsedTransaction[] }`. Replaces client-side regex. Used by `ImportTransactionsClient`. |
 | `src/app/api/profile/budget/route.ts` | PATCH monthly budget |
 | `src/app/api/profile/currency/route.ts` | PATCH preferred currency |
 | `src/app/api/ai-insights/route.ts` | POST `{ analytics, currency }`. **Flow:** rate-limit check → build **enriched `InsightsSummary`** (computes `avgDailySpend`, `unusualSpikes`, top-5 `categoryBreakdown`) → cache key = `month_key:hashAnalytics(analytics)` (hash busts cache when totals/count change) → read `ai_insights_cache` (validates `AIInsight[]`; skips legacy `string[]`) → on miss: logs `🔥 AI MODEL USED` → `generateAIInsights(summary, MODEL)` → upsert cache. Dev: logs `AI SUMMARY BUILT`. |
@@ -195,17 +196,15 @@ Implemented in **`src/app/(app)/dashboard/page.tsx`** as **`TransactionEntryType
 - **Logic:** `tax-estimator.ts`, `rent-vs-buy.ts`, `credit-score-sim.ts`, `decision-engine.ts`
 - **UI:** `(app)/tools/*/page.tsx` + matching `*Client.tsx` + `ToolPageShell`
 
-### CSV import
+### Unified import (CSV + PDF)
 
-- **Logic:** `csv-transactions.ts`, import validation in `sensitive-inputs.ts`
-- **UI:** `ImportTransactionsClient.tsx`, `import-transactions/page.tsx`
-- **API:** `api/transactions/import/route.ts`
-
-### PDF import
-
-- **Logic:** `parse-transactions-from-text.ts` (and related parsing)
-- **UI:** `PdfBankStatementUpload.tsx`
-- **API:** `api/parse-pdf/route.ts`
+- **UI:** `ImportTransactionsClient.tsx` — single upload area, single editable preview, single confirm path
+- **CSV flow:** `parseTransactionCsvFile` (client) → `PreviewRow[]` → convert to `ParsedTransaction[]` → editable `PdfPreviewRow[]`
+- **PDF flow:** POST `/api/parse-file` (auth + rate-limit) → pdf-parse + OpenAI → `ParsedTransaction[]` → editable `PdfPreviewRow[]`
+- **API (parse):** `api/parse-file/route.ts` — PDF only; `api/parse-pdf/route.ts` — legacy, raw text
+- **API (import):** `api/transactions/import/route.ts` — shared by both paths; uses `finalizeTransactionCategory` via `sensitive-inputs.ts`
+- **Category:** `resolvePdfImportCategory` called on every row at import time (keywords → credit→income fallback)
+- **`parseSource`** (`'csv'` | `'ai'`): drives copy differences in preview (neutral vs AI-caution)
 
 ### Auth & profile
 

@@ -230,7 +230,9 @@ export function FinancialInsights({
             {aiLoading ? (
               <AIInsightSkeleton />
             ) : aiInsights && aiInsights.length > 0 ? (
-              <AIInsightSection insights={aiInsights} />
+              <div className="animate-fade-in">
+                <AIInsightSection insights={aiInsights} />
+              </div>
             ) : (
               <InsightSection title="Spending" insights={expenseInsights} />
             )}

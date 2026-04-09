@@ -1,115 +1,290 @@
 'use client'
 
-import { Loader2 } from 'lucide-react'
+import { AlertTriangle, Loader2, Plus, Trash2 } from 'lucide-react'
 import { useRouter } from 'next/navigation'
-import { useCallback, useState } from 'react'
-import { PdfBankStatementUpload } from '@/components/tools/PdfBankStatementUpload'
+import { useCallback, useMemo, useState } from 'react'
+import { toast } from 'sonner'
+import type { ParsedTransaction } from '@/app/api/parse-file/route'
 import { useAuth } from '@/contexts/auth-context'
+import { useCurrency } from '@/contexts/currency-context'
+import { PUBLIC_ERROR_GENERIC } from '@/lib/api-public-error'
 import { authedFetch, readAuthedJson } from '@/lib/authed-api'
+import { resolvePdfImportCategory } from '@/lib/category-suggestion'
+import { parseTransactionCsvFile } from '@/lib/csv-transactions'
+import { formatCurrency } from '@/lib/format-currency'
+import { sanitizeUnsignedDecimalInput } from '@/lib/numeric-input'
 import {
-  parseTransactionCsvFile,
-  type CsvTransactionsPreview,
-  type ParseTransactionCsvResult,
-} from '@/lib/csv-transactions'
-import { formatAmountPlain } from '@/lib/format-currency'
+  formatTodayPdfStatementDate,
+  parsePdfStatementDateToIso,
+} from '@/lib/parse-transactions-from-text'
+
+// ─── Shared input style ────────────────────────────────────────────────────────
+
+const inputClass =
+  'w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-2.5 py-1.5 text-sm text-zinc-900 outline-none transition-colors duration-150 focus:border-zinc-700 focus:ring-2 focus:ring-zinc-700/20 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50 dark:focus:border-zinc-400 dark:focus:ring-zinc-400/20'
+
+// ─── PDF preview row type ──────────────────────────────────────────────────────
+
+type PdfPreviewRow = {
+  id: string
+  date: string
+  description: string
+  amount: string
+  type: 'credit' | 'debit'
+}
+
+function newPdfRow(
+  partial?: Partial<Pick<PdfPreviewRow, 'date' | 'description' | 'amount' | 'type'>>,
+): PdfPreviewRow {
+  const id =
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `row-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return {
+    id,
+    date: partial?.date ?? formatTodayPdfStatementDate(),
+    description: partial?.description ?? '',
+    amount: partial?.amount ?? '',
+    type: partial?.type ?? 'debit',
+  }
+}
+
+function pdfRowErrors(row: PdfPreviewRow): string[] {
+  const err: string[] = []
+  if (!row.date.trim()) err.push('Date required')
+  else if (!parsePdfStatementDateToIso(row.date)) err.push('Use DD-MMM-YYYY or YYYY-MM-DD')
+  if (!row.description.trim()) err.push('Description required')
+  const amt = Number.parseFloat(row.amount.replace(/,/g, ''))
+  if (!Number.isFinite(amt) || amt <= 0) err.push('Invalid amount')
+  return err
+}
+
+function parsedToPdfRow(tx: ParsedTransaction): PdfPreviewRow {
+  return newPdfRow({
+    date: tx.date,
+    description: tx.description,
+    amount: String(tx.amount),
+    type: tx.type,
+  })
+}
+
+function friendlyPdfError(message: string): string {
+  const m = message.trim()
+  if (!m) return PUBLIC_ERROR_GENERIC
+  const lower = m.toLowerCase()
+  if (lower.includes('must be signed') || lower.includes('signed in')) return m
+  if (lower.includes('no file')) return 'No file uploaded. Choose a PDF and try again.'
+  if (lower.includes("couldn't read") || lower.includes('could not read')) return m
+  if (lower.includes('could not parse')) return m
+  if (lower.includes('too many') || lower.includes('429')) return 'Too many requests. Wait a moment and try again.'
+  if (m.length > 120 || /\[object \w+\]/.test(m)) return PUBLIC_ERROR_GENERIC
+  return m
+}
+
+// ─── Main component ────────────────────────────────────────────────────────────
+
+type Mode = 'csv' | 'pdf' | null
 
 export function ImportTransactionsClient() {
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
-  const [fileName, setFileName] = useState<string | null>(null)
-  const [preview, setPreview] = useState<CsvTransactionsPreview | null>(null)
-  const [parseError, setParseError] = useState<string | null>(null)
-  const [importError, setImportError] = useState<string | null>(null)
-  const [importSuccess, setImportSuccess] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
+  const { currency } = useCurrency()
 
-  const resetMessages = useCallback(() => {
+  // Shared
+  const [mode, setMode] = useState<Mode>(null)
+  const [parseSource, setParseSource] = useState<'csv' | 'ai' | null>(null)
+  const [fileName, setFileName] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [parseError, setParseError] = useState<string | null>(null)
+
+  // Preview state (unified — used by both CSV and PDF paths)
+  const [pdfRows, setPdfRows] = useState<PdfPreviewRow[]>([])
+  const [pdfImportBusy, setPdfImportBusy] = useState(false)
+  const [pdfImportError, setPdfImportError] = useState<string | null>(null)
+
+  const reset = useCallback(() => {
+    setMode(null)
+    setParseSource(null)
+    setFileName(null)
     setParseError(null)
-    setImportError(null)
-    setImportSuccess(null)
+    setPdfRows([])
+    setPdfImportError(null)
   }, [])
+
+  // ─── File change handler ─────────────────────────────────────────────────────
 
   async function onFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
-    resetMessages()
-    setPreview(null)
-    setFileName(null)
+    reset()
     e.target.value = ''
-
     if (!file) return
-    if (!file.name.toLowerCase().endsWith('.csv')) {
-      setParseError('Please choose a .csv file.')
+
+    const name = file.name.toLowerCase()
+    const isCsv = name.endsWith('.csv') || file.type === 'text/csv'
+    const isPdf =
+      name.endsWith('.pdf') || file.type === 'application/pdf' || (file.type === '' && name.endsWith('.pdf'))
+
+    if (!isCsv && !isPdf) {
+      setParseError('Please choose a CSV or PDF file.')
       return
     }
 
     setBusy(true)
-    const result: ParseTransactionCsvResult = await parseTransactionCsvFile(file)
+    setFileName(file.name)
+
+    if (isCsv) {
+      const result = await parseTransactionCsvFile(file)
+      setBusy(false)
+      if (!result.ok) {
+        setParseError(result.error)
+        setFileName(null)
+        return
+      }
+      if (result.preview.rows.length === 0) {
+        setParseError('No data rows found after the header.')
+        setFileName(null)
+        return
+      }
+      const rows = result.preview.rows.map((r) =>
+        parsedToPdfRow({
+          date: r.createdAtIso ?? r.dateRaw,
+          description: r.description ?? r.descriptionRaw,
+          amount: r.amount ?? 0,
+          type: r.transactionType ?? 'debit',
+        }),
+      )
+      setParseSource('csv')
+      setMode('pdf')
+      setPdfRows(rows)
+      return
+    }
+
+    // PDF path — call AI parser
+    if (file.size > 5 * 1024 * 1024) {
+      setBusy(false)
+      setParseError('That file is too large. Maximum size is 5 MB.')
+      setFileName(null)
+      return
+    }
+
+    const formData = new FormData()
+    formData.append('file', file)
+
+    const res = await authedFetch('/api/parse-file', {
+      method: 'POST',
+      body: formData,
+    })
+    const parsed = await readAuthedJson<{ transactions: ParsedTransaction[] }>(res)
     setBusy(false)
 
-    if (!result.ok) {
-      setParseError(result.error)
+    if (!parsed.ok) {
+      setParseError(friendlyPdfError(parsed.message))
+      setFileName(null)
       return
     }
 
-    if (result.preview.rows.length === 0) {
-      setParseError('No data rows found after the header.')
-      return
-    }
-
-    setFileName(file.name)
-    setPreview(result.preview)
+    const rows = parsed.data.transactions.map(parsedToPdfRow)
+    setParseSource('ai')
+    setMode('pdf')
+    setPdfRows(rows)
   }
 
-  const validCount = preview?.rows.filter((r) => r.isValid).length ?? 0
-  const invalidCount = preview ? preview.rows.length - validCount : 0
+  // ─── PDF row editing ─────────────────────────────────────────────────────────
 
-  async function onImport() {
-    if (!user || !preview) return
-    setImportError(null)
-    setImportSuccess(null)
+  function updatePdfRow(
+    id: string,
+    patch: Partial<Pick<PdfPreviewRow, 'date' | 'description' | 'amount' | 'type'>>,
+  ) {
+    setPdfImportError(null)
+    setPdfRows((prev) => prev.map((r) => (r.id === id ? { ...r, ...patch } : r)))
+  }
 
-    const toInsert = preview.rows
-      .filter(
-        (r) =>
-          r.isValid &&
-          r.createdAtIso &&
-          r.amount !== null &&
-          r.transactionType !== null,
-      )
-      .map((r) => ({
-        amount: r.amount as number,
-        category: r.resolvedCategory,
-        description: r.description,
-        createdAt: r.createdAtIso as string,
-        transaction_type: r.transactionType as 'debit' | 'credit',
-      }))
+  function deletePdfRow(id: string) {
+    setPdfImportError(null)
+    setPdfRows((prev) => prev.filter((r) => r.id !== id))
+  }
 
-    if (toInsert.length === 0) {
-      setImportError('No valid rows to import. Fix errors in the preview first.')
+  function addPdfRow() {
+    setPdfImportError(null)
+    setPdfRows((prev) => [...prev, newPdfRow()])
+  }
+
+  const pdfImportStats = useMemo(() => {
+    const valid = pdfRows.filter((r) => pdfRowErrors(r).length === 0)
+    let debitTotal = 0
+    let creditTotal = 0
+    for (const r of valid) {
+      const amt = Number.parseFloat(r.amount.replace(/,/g, ''))
+      if (Number.isFinite(amt)) {
+        if (r.type === 'debit') debitTotal += amt
+        else creditTotal += amt
+      }
+    }
+    return { validCount: valid.length, debitTotal, creditTotal }
+  }, [pdfRows])
+
+  const pdfHasNoValidRows = pdfRows.length > 0 && pdfRows.every((r) => pdfRowErrors(r).length > 0)
+
+  // ─── PDF import ──────────────────────────────────────────────────────────────
+
+  async function onPdfImport() {
+    if (!user || pdfRows.length === 0) return
+    setPdfImportError(null)
+
+    const validRows = pdfRows.filter((r) => pdfRowErrors(r).length === 0)
+    if (validRows.length === 0) {
+      setPdfImportError('Fix the highlighted rows or add valid transactions before importing.')
       return
     }
 
-    setBusy(true)
+    const toInsert = validRows.map((r) => {
+      const amount = Number.parseFloat(r.amount.replace(/,/g, ''))
+      const desc = r.description.trim()
+      const createdAt = parsePdfStatementDateToIso(r.date.trim())!
+      const category = resolvePdfImportCategory({ description: desc, type: r.type })
+      return {
+        amount,
+        category,
+        description: desc.length ? desc : null,
+        createdAt,
+        transaction_type: r.type,
+      }
+    })
+
+    setPdfImportBusy(true)
     const res = await authedFetch('/api/transactions/import', {
       method: 'POST',
       json: { rows: toInsert },
     })
     const importResult = await readAuthedJson<{ count: number }>(res)
-    setBusy(false)
+    setPdfImportBusy(false)
 
     if (!importResult.ok) {
-      console.error('[import-transactions]', importResult.message)
-      setImportError(importResult.message)
+      const m = importResult.message.trim()
+      setPdfImportError(m.length > 160 ? PUBLIC_ERROR_GENERIC : m)
       return
     }
 
     const n = importResult.data.count
-    setImportSuccess(
-      `Imported ${n} transaction${n === 1 ? '' : 's'}.${invalidCount > 0 ? ` (${invalidCount} row${invalidCount === 1 ? '' : 's'} skipped due to errors.)` : ''}`,
-    )
-    setPreview(null)
-    setFileName(null)
+    const skipped = pdfRows.length - validRows.length
+
+    toast.success(`Imported ${n} transaction${n === 1 ? '' : 's'}`, {
+      description:
+        skipped > 0
+          ? `${skipped} row${skipped === 1 ? '' : 's'} skipped because of validation issues.`
+          : undefined,
+      duration: 9000,
+      action: {
+        label: 'View in dashboard',
+        onClick: () => router.push('/dashboard'),
+      },
+    })
+
+    reset()
+    router.refresh()
   }
+
+  // ─── Auth guards ─────────────────────────────────────────────────────────────
 
   if (authLoading) {
     return (
@@ -135,179 +310,312 @@ export function ImportTransactionsClient() {
     )
   }
 
+  // ─── Render ──────────────────────────────────────────────────────────────────
+
   return (
     <div className="mt-8 space-y-8">
+      {/* Upload area */}
       <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
         <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
         <div className="relative">
-        <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-          Upload CSV
-        </h2>
-        <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
-          Header row must include{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">date</span>,{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">description</span>, and{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">amount</span>.{' '}
-          <span className="text-zinc-600 dark:text-zinc-300">
-            Negative amounts import as credits (income); positive as debits (expenses). Stored amounts are absolute values.
-          </span>{' '}
-          Optional <span className="font-mono text-zinc-700 dark:text-zinc-300">category</span> is
-          used when valid; otherwise categories are inferred from the description or set to{' '}
-          <span className="font-mono text-zinc-700 dark:text-zinc-300">Other</span>.
-        </p>
-
-        <label className="mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed border-zinc-300 bg-zinc-50/80 px-6 py-12 transition-all duration-150 ease-in-out hover:border-indigo-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-500/40">
-          <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
-            {busy && !preview ? 'Reading file…' : 'Choose CSV file'}
-          </span>
-          <span className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
-            .csv only
-          </span>
-          <input
-            type="file"
-            accept=".csv,text/csv"
-            className="sr-only"
-            disabled={busy}
-            onChange={onFileChange}
-          />
-        </label>
-
-        {fileName ? (
-          <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
-            Selected: <span className="font-medium text-zinc-700 dark:text-zinc-300">{fileName}</span>
+          <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+            Upload statement
+          </h2>
+          <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
+            <strong className="font-medium text-zinc-700 dark:text-zinc-300">CSV:</strong> header row
+            must include{' '}
+            <span className="font-mono text-zinc-700 dark:text-zinc-300">date</span>,{' '}
+            <span className="font-mono text-zinc-700 dark:text-zinc-300">description</span>, and{' '}
+            <span className="font-mono text-zinc-700 dark:text-zinc-300">amount</span>. Negative
+            amounts import as credits.{' '}
+            <strong className="font-medium text-zinc-700 dark:text-zinc-300">PDF:</strong> bank
+            statement — AI extracts and structures transactions for review.
           </p>
-        ) : null}
 
-        {parseError ? (
-          <p
-            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
-            role="alert"
+          <label
+            className={`mt-5 flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-12 transition-all duration-200 ease-[cubic-bezier(0.23,1,0.32,1)] ${
+              busy
+                ? 'border-indigo-300/70 bg-indigo-50/60 dark:border-indigo-500/35 dark:bg-indigo-950/25'
+                : 'border-zinc-300 bg-zinc-50/80 hover:border-indigo-400/50 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900/40 dark:hover:border-indigo-500/40'
+            }`}
           >
-            {parseError}
-          </p>
-        ) : null}
+            {busy ? (
+              <span className="flex flex-col items-center gap-3 text-center">
+                <Loader2
+                  className="h-8 w-8 shrink-0 animate-spin text-indigo-600 dark:text-indigo-400"
+                  aria-hidden
+                />
+                <span className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  {mode === null && fileName?.toLowerCase().endsWith('.pdf')
+                    ? 'Analysing with AI…'
+                    : 'Reading file…'}
+                </span>
+                <span className="max-w-xs text-xs text-zinc-500 dark:text-zinc-400">
+                  {fileName?.toLowerCase().endsWith('.pdf')
+                    ? 'Extracting and structuring your transactions.'
+                    : 'Parsing rows and inferring categories.'}
+                </span>
+              </span>
+            ) : (
+              <>
+                <span className="text-sm font-medium text-zinc-700 dark:text-zinc-200">
+                  Upload statement (CSV or PDF)
+                </span>
+                <span className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+                  .csv or .pdf · max 5 MB
+                </span>
+              </>
+            )}
+            <input
+              type="file"
+              accept=".csv,.pdf,text/csv,application/pdf"
+              className="sr-only"
+              disabled={busy}
+              onChange={onFileChange}
+            />
+          </label>
 
-        {importSuccess ? (
-          <p
-            className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-100"
-            role="status"
-          >
-            {importSuccess}
-          </p>
-        ) : null}
+          {fileName && !busy ? (
+            <p className="mt-3 text-xs text-zinc-500 dark:text-zinc-400">
+              Selected:{' '}
+              <span className="font-medium text-zinc-700 dark:text-zinc-300">{fileName}</span>
+            </p>
+          ) : null}
 
-        {importError ? (
-          <p
-            className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
-            role="alert"
-          >
-            {importError}
-          </p>
-        ) : null}
+          {parseError ? (
+            <p
+              className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+              role="alert"
+            >
+              {parseError}
+            </p>
+          ) : null}
+
         </div>
       </section>
 
-      <PdfBankStatementUpload />
-
-      {preview ? (
+      {/* Unified preview — editable rows for CSV and AI-parsed PDF */}
+      {mode === 'pdf' ? (
         <section className="relative overflow-hidden rounded-2xl border border-zinc-200 bg-gradient-to-br from-white via-white to-zinc-50/80 p-4 shadow-sm transition-all duration-150 ease-in-out hover:shadow-md sm:p-6 dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-zinc-900/50">
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-indigo-500/[0.02] to-transparent dark:from-indigo-400/[0.03]" />
-          <div className="relative flex flex-wrap items-end justify-between gap-4">
-            <div>
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
-                Preview
-              </h2>
-              <p className="mt-1 text-xs text-zinc-500/85 dark:text-zinc-400/85">
-                {preview.rows.length} row
-                {preview.rows.length === 1 ? '' : 's'} ·{' '}
-                <span className="text-emerald-700 dark:text-emerald-400">
-                  {validCount} valid
-                </span>
-                {invalidCount > 0 ? (
-                  <>
-                    {' '}
-                    ·{' '}
-                    <span className="text-red-700 dark:text-red-400">
-                      {invalidCount} with errors
-                    </span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <button
-              type="button"
-              disabled={busy || validCount === 0}
-              onClick={onImport}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-indigo-600 px-5 py-2.5 text-sm font-medium text-white shadow-sm transition-all duration-150 ease-in-out hover:bg-indigo-700 hover:shadow disabled:cursor-not-allowed disabled:opacity-50 active:scale-[0.98] dark:bg-indigo-500 dark:hover:bg-indigo-400"
-            >
-              {busy ? (
-                <>
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
-                  Importing…
-                </>
-              ) : (
-                `Import ${validCount} transaction${validCount === 1 ? '' : 's'}`
-              )}
-            </button>
-          </div>
-
-          <div className="relative z-10 mt-4 max-h-[420px] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full min-w-[720px] text-left text-sm">
-              <thead className="sticky top-0 bg-zinc-100 dark:bg-zinc-900">
-                <tr>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">#</th>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Date</th>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Description</th>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Category</th>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Amount</th>
-                  <th className="px-3 py-2 font-medium text-zinc-700 dark:text-zinc-300">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
-                {preview.rows.map((row) => (
-                  <tr
-                    key={row.rowNumber}
-                    className={
-                      row.isValid
-                        ? 'bg-white dark:bg-zinc-950'
-                        : 'bg-red-50/40 dark:bg-red-950/15'
-                    }
-                  >
-                    <td className="px-3 py-2 tabular-nums text-zinc-500 dark:text-zinc-400">
-                      {row.rowNumber}
-                    </td>
-                    <td className="max-w-[140px] truncate px-3 py-2 text-zinc-800 dark:text-zinc-200" title={row.dateRaw}>
-                      {row.dateRaw || '—'}
-                    </td>
-                    <td className="max-w-[220px] truncate px-3 py-2 text-zinc-800 dark:text-zinc-200" title={row.descriptionRaw}>
-                      {row.descriptionRaw || '—'}
-                    </td>
-                    <td className="max-w-[120px] truncate px-3 py-2 text-zinc-800 dark:text-zinc-200" title={row.resolvedCategory}>
-                      {row.resolvedCategory}
-                    </td>
-                    <td className="px-3 py-2 font-mono tabular-nums text-zinc-800 dark:text-zinc-200">
-                      {row.amount !== null
-                        ? formatAmountPlain(row.amount)
-                        : row.amountRaw || '—'}
-                    </td>
-                    <td className="px-3 py-2">
-                      {row.isValid ? (
-                        <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
-                          Valid
-                        </span>
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-500/[0.02] to-transparent dark:from-violet-400/[0.03]" />
+          <div className="result-panel relative space-y-4">
+            {pdfRows.length === 0 ? (
+              <div className="rounded-xl border border-zinc-200/90 bg-zinc-50/90 px-4 py-8 text-center dark:border-zinc-700 dark:bg-zinc-900/50">
+                <p className="text-sm font-medium text-zinc-800 dark:text-zinc-100">
+                  No transactions detected
+                </p>
+                <p className="mx-auto mt-2 max-w-sm text-sm text-zinc-500 dark:text-zinc-400">
+                  {parseSource === 'ai'
+                    ? "Try another file or add transactions manually. Some bank PDFs use formats the AI doesn't recognize yet."
+                    : 'No rows were found in the file. Check your CSV has a header row and data below it.'}
+                </p>
+                <button
+                  type="button"
+                  onClick={addPdfRow}
+                  className="mt-5 inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-4 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                >
+                  <Plus className="h-4 w-4 shrink-0" aria-hidden />
+                  Add manually
+                </button>
+              </div>
+            ) : (
+              <>
+                <div className="flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">
+                      Preview
+                    </h2>
+                    <p className="mt-0.5 text-xs text-zinc-500 dark:text-zinc-400">
+                      {parseSource === 'ai'
+                        ? 'AI-extracted — edit any cell before importing. Invalid rows are skipped.'
+                        : 'Review and edit before importing. Invalid rows are skipped.'}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={addPdfRow}
+                      className="inline-flex items-center gap-1.5 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-xs font-medium text-zinc-800 transition-colors duration-150 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:bg-zinc-800"
+                    >
+                      <Plus className="h-3.5 w-3.5" aria-hidden />
+                      Add row
+                    </button>
+                    <button
+                      type="button"
+                      disabled={!user || pdfImportBusy || pdfRows.length === 0 || pdfHasNoValidRows}
+                      onClick={() => void onPdfImport()}
+                      className="inline-flex items-center justify-center gap-2 rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-[transform,background-color] duration-150 hover:bg-zinc-800 active:scale-[0.97] disabled:cursor-not-allowed disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+                    >
+                      {pdfImportBusy ? (
+                        <>
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" aria-hidden />
+                          Importing…
+                        </>
                       ) : (
-                        <span
-                          className="text-xs text-red-700 dark:text-red-300"
-                          title={row.errors.join(' ')}
-                        >
-                          {row.errors.join('; ')}
-                        </span>
+                        'Confirm import'
                       )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Import summary */}
+                <div className="rounded-xl border border-zinc-200/90 bg-white/80 px-4 py-3 dark:border-zinc-800 dark:bg-zinc-950/60">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 dark:text-zinc-400">
+                    Import summary
+                  </p>
+                  <dl className="mt-3 grid gap-3 sm:grid-cols-3">
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Transactions</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {pdfImportStats.validCount}
+                        {pdfRows.length !== pdfImportStats.validCount ? (
+                          <span className="font-normal text-zinc-400"> / {pdfRows.length} rows</span>
+                        ) : null}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Total debit</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {formatCurrency(pdfImportStats.debitTotal, currency)}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-xs text-zinc-500 dark:text-zinc-400">Total credit</dt>
+                      <dd className="mt-0.5 text-sm font-semibold tabular-nums text-zinc-900 dark:text-zinc-50">
+                        {formatCurrency(pdfImportStats.creditTotal, currency)}
+                      </dd>
+                    </div>
+                  </dl>
+                  <p className="mt-2 text-[11px] text-zinc-400 dark:text-zinc-500">
+                    Totals include only rows that pass validation.
+                  </p>
+                </div>
+
+                {/* Editable table */}
+                <div className="max-h-[min(420px,55vh)] overflow-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
+                  <table className="w-full min-w-[640px] text-left text-sm">
+                    <thead className="sticky top-0 z-[1] border-b border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900">
+                      <tr>
+                        <th className="whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Date
+                        </th>
+                        <th className="min-w-[200px] px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Description
+                        </th>
+                        <th className="w-[120px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Amount
+                        </th>
+                        <th className="w-[100px] whitespace-nowrap px-3 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          Type
+                        </th>
+                        <th className="w-14 px-2 py-2.5 text-xs font-medium text-zinc-600 dark:text-zinc-400">
+                          <span className="sr-only">Delete</span>
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-zinc-100 bg-white dark:divide-zinc-800 dark:bg-zinc-950">
+                      {pdfRows.map((row, idx) => {
+                        const errs = pdfRowErrors(row)
+                        const invalid = errs.length > 0
+                        return (
+                          <tr
+                            key={row.id}
+                            className={
+                              invalid
+                                ? 'bg-red-50/50 dark:bg-red-950/20'
+                                : 'bg-white dark:bg-zinc-950'
+                            }
+                            title={invalid ? errs.join(' · ') : undefined}
+                          >
+                            <td className="px-3 py-2 align-middle">
+                              <input
+                                className={inputClass}
+                                aria-label={`Date row ${idx + 1}`}
+                                value={row.date}
+                                onChange={(e) => updatePdfRow(row.id, { date: e.target.value })}
+                                placeholder="YYYY-MM-DD"
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <input
+                                className={inputClass}
+                                aria-label={`Description row ${idx + 1}`}
+                                value={row.description}
+                                onChange={(e) =>
+                                  updatePdfRow(row.id, { description: e.target.value })
+                                }
+                                placeholder="Description"
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <input
+                                className={`${inputClass} tabular-nums`}
+                                aria-label={`Amount row ${idx + 1}`}
+                                inputMode="decimal"
+                                autoComplete="off"
+                                value={row.amount}
+                                onChange={(e) =>
+                                  updatePdfRow(row.id, {
+                                    amount: sanitizeUnsignedDecimalInput(e.target.value),
+                                  })
+                                }
+                                placeholder="0"
+                              />
+                            </td>
+                            <td className="px-3 py-2 align-middle">
+                              <select
+                                className={inputClass}
+                                aria-label={`Type row ${idx + 1}`}
+                                value={row.type}
+                                onChange={(e) =>
+                                  updatePdfRow(row.id, {
+                                    type: e.target.value as 'credit' | 'debit',
+                                  })
+                                }
+                              >
+                                <option value="debit">Debit</option>
+                                <option value="credit">Credit</option>
+                              </select>
+                            </td>
+                            <td className="px-2 py-2 align-middle">
+                              <button
+                                type="button"
+                                onClick={() => deletePdfRow(row.id)}
+                                className="rounded-md p-2 text-zinc-500 transition-colors hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/40 dark:hover:text-red-300"
+                                aria-label={`Remove row ${idx + 1}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        )
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+
+            {pdfImportError ? (
+              <p
+                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200"
+                role="alert"
+              >
+                {pdfImportError}
+              </p>
+            ) : null}
+
+            {/* Review reminder — AI extraction gets a stronger caution */}
+            {pdfRows.length === 0 ? null : (
+              <p className="flex gap-2 rounded-xl border border-amber-200/90 bg-amber-50/90 px-3 py-2.5 text-xs text-amber-950 dark:border-amber-900/50 dark:bg-amber-950/35 dark:text-amber-100/95">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 opacity-80" aria-hidden />
+                <span>
+                  {parseSource === 'ai'
+                    ? 'AI-extracted — review carefully before importing. Edit any cell or remove rows as needed.'
+                    : 'Review before importing. Edit any cell or remove rows as needed.'}
+                </span>
+              </p>
+            )}
           </div>
         </section>
       ) : null}

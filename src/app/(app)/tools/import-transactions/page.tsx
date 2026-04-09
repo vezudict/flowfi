@@ -7,13 +7,13 @@ export default function ImportTransactionsPage() {
         Import transactions
       </h1>
       <p className="max-w-prose text-sm leading-relaxed text-zinc-600/85 dark:text-zinc-400/85">
-        Upload a CSV with <span className="font-mono text-zinc-800 dark:text-zinc-200">date</span>,{' '}
+        Upload a bank statement CSV or PDF. CSV requires{' '}
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">date</span>,{' '}
         <span className="font-mono text-zinc-800 dark:text-zinc-200">description</span>, and{' '}
-        <span className="font-mono text-zinc-800 dark:text-zinc-200">amount</span>. Categories are
-        inferred from the description (e.g. Swiggy → Food), or taken from an optional{' '}
-        <span className="font-mono text-zinc-800 dark:text-zinc-200">category</span> column when valid;
-        otherwise they default to Other. Review the preview, then import. You can also upload a bank
-        statement PDF to extract raw text (experimental).
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">amount</span> columns — categories
+        are inferred or read from an optional{' '}
+        <span className="font-mono text-zinc-800 dark:text-zinc-200">category</span> column. PDF
+        statements are parsed by AI and presented as an editable preview before import.
       </p>
       <ImportTransactionsClient />
     </div>

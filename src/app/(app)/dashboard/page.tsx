@@ -771,7 +771,7 @@ export default function DashboardPage() {
                   type="button"
                   onClick={() => { void fetchAIInsights() }}
                   disabled={aiInsightsLoading}
-                  className="rounded-md bg-zinc-800 px-3 py-1 text-xs text-zinc-100 transition-colors duration-150 hover:bg-zinc-700 disabled:opacity-50 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+                  className="rounded-md bg-zinc-800 px-3 py-1 text-xs text-zinc-100 transition-[colors,transform,opacity] duration-150 hover:bg-zinc-700 active:scale-95 disabled:opacity-60 dark:bg-zinc-700 dark:hover:bg-zinc-600"
                 >
                   {aiInsightsLoading ? 'Refreshing…' : 'Regenerate'}
                 </button>

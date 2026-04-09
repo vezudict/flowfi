@@ -151,6 +151,22 @@ input[type='number'] {
   background-color: var(--app-scrollbar-thumb-hover);
 }
 
+/* AI insights fade-in when they load */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.4s ease-out;
+}
+
 /* Result panels animate in when they appear */
 .result-panel {
   opacity: 1;
