@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server'
 import {
-  PUBLIC_ERROR_GENERIC,
   PUBLIC_ERROR_TOO_MANY_REQUESTS,
   PUBLIC_ERROR_UNAUTHORIZED,
 } from '@/lib/api-public-error'
@@ -110,7 +109,7 @@ export async function POST(request: Request) {
 
     return NextResponse.json({ insights, cached: false })
   } catch (err) {
-    console.error('[ai-insights] error:', err)
-    return NextResponse.json({ error: PUBLIC_ERROR_GENERIC }, { status: 500 })
+    console.error('AI ROUTE ERROR', err)
+    return Response.json({ error: String(err) }, { status: 500 })
   }
 }
