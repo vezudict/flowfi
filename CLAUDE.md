@@ -33,9 +33,10 @@
 | `/signup` | Signup page |
 | `/dashboard` | Main dashboard — transactions, analytics, charts |
 | `/tools` | Tool index grid |
-| `/tools/credit-score` | Credit Score Simulator |
-| `/tools/tax-estimator` | Tax Estimator (INR) |
+| `/tools/credit-score` | Credit Score Simulator — sliders, factor breakdown cards, delta, AI explain |
+| `/tools/tax-estimator` | Tax Estimator (INR) — 80C/HRA/standard deductions, slab bars, AI optimize |
 | `/tools/decision-engine` | Financial Decision Engine |
+| `/tools/financial-report` | AI Monthly Financial Report — summary, risks, opportunities, recommendations |
 | `/tools/rent-vs-buy` | Rent vs Buy Calculator |
 | `/tools/import-transactions` | CSV Import |
 | `/settings` | Settings (appearance, currency) |
@@ -55,3 +56,9 @@
 - **Mobile drawer (app):** in `AppNavbar`; `translate-x-0`/`-translate-x-full` with `cubic-bezier(0.32, 0.72, 0, 1)` (280ms)
 - **AI insights:** `src/app/api/ai-insights/route.ts` (POST) — receives `{ analytics: AnalyticsBundle, currency }`, checks `ai_insights_cache` Supabase table (keyed on `user_id + month_key`), calls OpenAI `gpt-4o-mini` on cache miss, upserts result. Dashboard fetches this after transactions load; falls back to rule-based `buildExpenseInsights` on error. Needs `OPENAI_API_KEY` env var. Service layer: `src/lib/ai-insights.ts` (server-only).
 - **Decision Engine API:** `src/app/api/decision-engine/route.ts` (POST) — receives `{ question: string }`, fetches user transactions, runs `computeAnalytics`, calls OpenAI `gpt-4o-mini` with `response_format: json_object`, returns `{ summary, verdict, confidence, reasons[], suggestions[] }`. Rate limits: 5/min per user, 20/min per IP. In-process cache (5 min TTL) keyed on hash(question + totalSpending + totalIncome + transactionCount). Falls back gracefully if transactionCount < 3. UI: `src/components/tools/DecisionEngineClient.tsx`.
+- **Credit Score Explain API:** `src/app/api/credit-score-explain/route.ts` (POST) — receives `{ score, result: CreditSimResult }`, returns `{ insights: string[] }` (2–3 sharp AI insights). Rate limits: 5/min user, 20/min IP.
+- **Tax Optimize API:** `src/app/api/tax-optimize/route.ts` (POST) — receives `{ estimate: TaxEstimate }`, returns `{ insights: string[] }` (2–3 optimization tips referencing specific rupee amounts). Rate limits: 5/min user, 20/min IP.
+- **Financial Report API:** `src/app/api/financial-report/route.ts` (POST) — fetches user transactions, builds analytics snapshot, calls OpenAI `gpt-4o-mini`, returns `FinancialReport { summary, spendingAnalysis, incomeAnalysis, risks[], opportunities[], recommendations[], generatedAt }`. In-process cache (10 min TTL). Falls back if transactionCount < 5. UI: `src/components/tools/FinancialReportClient.tsx`.
+- **Credit Score Simulator lib:** `src/lib/credit-score-sim.ts` — `CreditSimInputs` now includes `hardInquiries`. `CreditSimResult` now includes `delta` (vs baseline 650) and `factors: CreditFactor[]` (label, impact, explanation). Client uses real-time sliders (no form submit).
+- **Tax Estimator lib:** `src/lib/tax-estimator.ts` — `estimateIncomeTax(income, deductions?)` accepts `TaxDeductions { section80C, hra, standardDeduction }`. Returns `TaxEstimate` with `grossIncome`, `totalDeductions`, `taxableIncome`, `suggestions[]`.
+- **Tools page:** `src/app/(app)/tools/page.tsx` — grouped into AI Tools / Simulators / Data sections with section headers and AI badge.
