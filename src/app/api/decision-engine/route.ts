@@ -59,42 +59,13 @@ function setCache(key: string, result: DecisionResult): void {
 }
 
 function buildSystemPrompt(): string {
-  return `You are a financial decision engine.
-
-RULES:
-- Use ONLY the provided financial data — no generic advice
-- ALWAYS include specific numbers from the context
-- Be concise and sharp — think like a financial advisor, not a chatbot
-- If the user can afford it → verdict "yes" with clear reasoning
-- If it is risky → verdict "depends"
-- If it is a bad idea → verdict "no" clearly
-
-STYLE:
-- Bad: "Consider your finances carefully"
-- Good: "This purchase is 35% of your monthly spending — high risk at current income levels"
-
-OUTPUT QUALITY:
-- Every reason must include a number or percentage
-- Suggestions must be specific and actionable
-- No filler phrases
-
-Respond ONLY with valid JSON — no explanation, no markdown.`
+  return `You are a financial decision engine. Answer using given numbers only. No generic advice. Return structured JSON.`
 }
 
 function buildUserPrompt(question: string, ctx: Record<string, unknown>): string {
-  return `User question: "${question}"
-
-Financial context:
-${JSON.stringify(ctx, null, 2)}
-
-Return a JSON object with this exact shape:
-{
-  "summary": "one concise sentence answering the question with a specific number",
-  "verdict": "yes" | "no" | "depends",
-  "confidence": "low" | "medium" | "high",
-  "reasons": ["reason with a number", "reason with a number", "reason with a number"],
-  "suggestions": ["specific actionable suggestion", "specific actionable suggestion"]
-}`
+  return `Question: "${question}"
+Data: ${JSON.stringify(ctx)}
+Return JSON: {"summary":"one sentence with a number","verdict":"yes"|"no"|"depends","confidence":"low"|"medium"|"high","reasons":["≤3 items, each with a number"],"suggestions":["≤3 actionable items"]}`
 }
 
 function fallbackResult(): DecisionResult {
@@ -187,7 +158,8 @@ export async function POST(request: Request) {
     } = analytics
 
     // Sparse data fallback — skip OpenAI call
-    if (transactionCount < 3) {
+    if (transactionCount < 3 || totalSpending === 0) {
+      if (isDev) console.log('[decision-engine] EARLY EXIT — sparse data', { transactionCount, totalSpending })
       return NextResponse.json(fallbackResult())
     }
 
@@ -198,19 +170,20 @@ export async function POST(request: Request) {
         ? Math.round((totalSpending / spendingDays.length) * 100) / 100
         : 0
 
-    const categoryBreakdown = pieByCategory.slice(0, 6)
+    // Only send the top spending category — not the full breakdown array
+    const topCat = pieByCategory[0] ?? null
 
     const ctx = {
       totalSpending,
       totalIncome,
       netSavings,
+      topCategory: topCat ? { name: topCat.name, amount: topCat.value } : null,
       avgDailySpend,
       transactionCount,
-      categoryBreakdown,
     }
 
     if (isDev) {
-      console.log('DECISION CONTEXT', ctx)
+      console.log('[decision-engine] CONTEXT', ctx)
     }
 
     // Cache key: hash of question + key financial values (invalidates when spending changes)
@@ -236,7 +209,8 @@ export async function POST(request: Request) {
       },
       body: JSON.stringify({
         model: MODEL,
-        temperature: 0.4,
+        temperature: 0.3,
+        max_tokens: 400,
         response_format: { type: 'json_object' },
         messages: [
           { role: 'system', content: buildSystemPrompt() },
@@ -269,13 +243,13 @@ export async function POST(request: Request) {
       throw new Error('Unexpected OpenAI response shape')
     }
 
-    // Enforce string arrays
+    // Enforce string arrays, cap at 3 items each
     const result: DecisionResult = {
       summary: parsed.summary,
       verdict: parsed.verdict,
       confidence: parsed.confidence,
-      reasons: (parsed.reasons as unknown[]).filter((r) => typeof r === 'string') as string[],
-      suggestions: (parsed.suggestions as unknown[]).filter((s) => typeof s === 'string') as string[],
+      reasons: ((parsed.reasons as unknown[]).filter((r) => typeof r === 'string') as string[]).slice(0, 3),
+      suggestions: ((parsed.suggestions as unknown[]).filter((s) => typeof s === 'string') as string[]).slice(0, 3),
     }
 
     setCache(cacheKey, result)

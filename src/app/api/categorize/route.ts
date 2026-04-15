@@ -6,6 +6,9 @@ import {
 import { buildRateLimitKey, rateLimitConsumeDual } from '@/lib/rate-limit'
 import { getRequestIp } from '@/lib/request-ip'
 import { getBearerToken, requireUserFromBearer } from '@/lib/supabase-server'
+import { detectCategory } from '@/lib/category-suggestion'
+
+const isDev = process.env.NODE_ENV === 'development'
 
 /** 5 AI categorize calls per user per minute (client caches results in localStorage). */
 const CAT_PER_MINUTE_USER = 5
@@ -71,17 +74,26 @@ export async function POST(req: Request) {
   }
 
   const description = ((body as Record<string, unknown>).description as string).trim()
-  if (!description || description.length < 2) {
+  if (!description || description.length < 4) {
     return NextResponse.json({ category: 'other', confidence: 0.5 })
   }
   if (description.length > 200) {
     return NextResponse.json({ error: 'description too long.' }, { status: 400 })
   }
 
+  // Rule engine first — avoid AI call when keywords match
+  const ruleCategory = detectCategory(description)
+  if (ruleCategory !== 'other') {
+    if (isDev) console.log('[categorize] AI CALL SAVED — RULE USED', description, '→', ruleCategory)
+    return NextResponse.json({ category: ruleCategory, confidence: 0.95 })
+  }
+
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) {
     return NextResponse.json({ category: 'other', confidence: 0.5 })
   }
+
+  if (isDev) console.log('[categorize] AI CALL TRIGGERED', description)
 
   try {
     const response = await fetch('https://api.openai.com/v1/chat/completions', {
@@ -93,15 +105,15 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model: 'gpt-4o-mini',
         temperature: 0,
-        max_tokens: 20,
+        max_tokens: 10,
         messages: [
           {
+            role: 'system',
+            content: 'Classify transaction. Return one category only: food, transport, entertainment, subscriptions, utilities, shopping, transfer, income, other.',
+          },
+          {
             role: 'user',
-            content: `Categorize this bank transaction description into exactly one of these categories: food, transport, entertainment, subscriptions, utilities, shopping, transfer, income, other.
-
-Description: "${description}"
-
-Reply with ONLY the category name, nothing else.`,
+            content: description,
           },
         ],
       }),

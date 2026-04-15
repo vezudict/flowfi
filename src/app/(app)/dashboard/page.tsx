@@ -298,6 +298,8 @@ export default function DashboardPage() {
   const categorySetByAI = useRef<string | null>(null)
   // Simple in-memory cache: description → category (last 5)
   const aiCategoryCache = useRef<Map<string, string>>(new Map())
+  // Track last description sent to AI to prevent redundant calls
+  const lastAIDesc = useRef<string | null>(null)
 
   const suggestedCategory = useMemo(
     () => suggestCategoryFromDescription(description),
@@ -334,10 +336,15 @@ export default function DashboardPage() {
     if (!autoCategoryOn) return
     const desc = description.trim()
     if (desc.length < 4) return
+    // Skip if description hasn't changed since last successful AI call
+    if (desc === lastAIDesc.current) return
+
+    let spinnerTimer: ReturnType<typeof setTimeout> | null = null
     const timer = setTimeout(async () => {
-      // Check cache first
+      // Check cache first — no AI call needed
       const cached = aiCategoryCache.current.get(desc)
       if (cached) {
+        if (process.env.NODE_ENV === 'development') console.log('[categorize] AI CACHE HIT', desc, '→', cached)
         setCategory((prev) => {
           const prevTrim = prev.trim()
           if (!prevTrim || prevTrim === categorySetByAI.current || isOtherLikeCategoryLabel(prevTrim)) {
@@ -348,7 +355,13 @@ export default function DashboardPage() {
         })
         return
       }
-      setCategoryLoading(true)
+
+      // Show spinner only after 300ms to avoid flash on fast responses
+      spinnerTimer = setTimeout(() => setCategoryLoading(true), 300)
+
+      if (process.env.NODE_ENV === 'development') console.log('[categorize] AI CALL TRIGGERED', desc)
+      lastAIDesc.current = desc
+
       try {
         const res = await authedFetch('/api/categorize', {
           method: 'POST',
@@ -375,10 +388,14 @@ export default function DashboardPage() {
       } catch {
         // Silently fall back — do not disrupt the form
       } finally {
+        if (spinnerTimer) clearTimeout(spinnerTimer)
         setCategoryLoading(false)
       }
     }, 600)
-    return () => clearTimeout(timer)
+    return () => {
+      clearTimeout(timer)
+      if (spinnerTimer) clearTimeout(spinnerTimer)
+    }
   }, [description, autoCategoryOn])
 
   useEffect(() => {
@@ -729,6 +746,7 @@ export default function DashboardPage() {
     setEntryType('debit')
     categorySyncedFromSuggestion.current = null
     categorySetByAI.current = null
+    lastAIDesc.current = null
     await loadDashboard()
   }
 
