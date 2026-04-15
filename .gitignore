@@ -40,3 +40,6 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# rag index — generated, not source (re-run rag/scripts/index.mjs to rebuild)
+/rag/index/
