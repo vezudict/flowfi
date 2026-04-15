@@ -37,7 +37,6 @@
 | `/tools/tax-estimator` | Tax Estimator (INR) — 80C/HRA/standard deductions, slab bars, AI optimize |
 | `/tools/decision-engine` | Financial Decision Engine |
 | `/tools/financial-report` | AI Monthly Financial Report — summary, risks, opportunities, recommendations |
-| `/tools/rent-vs-buy` | Rent vs Buy Calculator |
 | `/tools/import-transactions` | CSV Import |
 | `/settings` | Settings (appearance, currency) |
 | `/guide` | In-app guide / learn section — public, uses LandingNavbar + Footer |
@@ -61,4 +60,5 @@
 - **Financial Report API:** `src/app/api/financial-report/route.ts` (POST) — fetches user transactions, builds analytics snapshot, calls OpenAI `gpt-4o-mini`, returns `FinancialReport { summary, spendingAnalysis, incomeAnalysis, risks[], opportunities[], recommendations[], generatedAt }`. In-process cache (10 min TTL). Falls back if transactionCount < 5. UI: `src/components/tools/FinancialReportClient.tsx`.
 - **Credit Score Simulator lib:** `src/lib/credit-score-sim.ts` — `CreditSimInputs` now includes `hardInquiries`. `CreditSimResult` now includes `delta` (vs baseline 650) and `factors: CreditFactor[]` (label, impact, explanation). Client uses real-time sliders (no form submit).
 - **Tax Estimator lib:** `src/lib/tax-estimator.ts` — `estimateIncomeTax(income, deductions?)` accepts `TaxDeductions { section80C, hra, standardDeduction }`. Returns `TaxEstimate` with `grossIncome`, `totalDeductions`, `taxableIncome`, `suggestions[]`.
+- **Categorize API:** `src/app/api/categorize/route.ts` (POST) — receives `{ description: string }`, calls OpenAI `gpt-4o-mini` to classify into: food, transport, entertainment, subscriptions, utilities, shopping, transfer, income, other. Rate limits: 5/min user, 20/min IP. Returns `{ category, confidence }`. Dashboard "Add transaction" form has an **Auto-detect category (AI)** toggle that debounces (600ms) description input → calls this API → updates the category field (only if user hasn't manually overridden). Cache: last 5 results in-memory per session.
 - **Tools page:** `src/app/(app)/tools/page.tsx` — grouped into AI Tools / Simulators / Data sections with section headers and AI badge.

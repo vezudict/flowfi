@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { BarChart2, Calculator, FileInput, GitCompare, Home, FileText } from 'lucide-react'
+import { BarChart2, Calculator, FileInput, GitCompare, FileText } from 'lucide-react'
 
 const aiTools = [
   {
@@ -37,12 +37,6 @@ const dataTools = [
     description: 'Upload a CSV and add rows to your ledger after a quick preview.',
     href: '/tools/import-transactions',
     Icon: FileInput,
-  },
-  {
-    title: 'Rent vs Buy',
-    description: 'Estimate whether renting or buying fits your time horizon and cash flow.',
-    href: '/tools/rent-vs-buy',
-    Icon: Home,
   },
 ] as const
 

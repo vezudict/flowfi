@@ -2,7 +2,7 @@
 
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'framer-motion'
-import { Check, Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
+import { Bot, Check, Loader2, Pencil, Receipt, Search, Trash2, X } from 'lucide-react'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useRouter } from 'next/navigation'
@@ -292,14 +292,21 @@ export default function DashboardPage() {
   const [aiInsightsLoading, setAiInsightsLoading] = useState(false)
   const [aiEnabled, setAiEnabled] = useState(false)
   const [aiLastUpdated, setAiLastUpdated] = useState<Date | null>(null)
+  const [autoCategoryOn, setAutoCategoryOn] = useState(false)
+  const [categoryLoading, setCategoryLoading] = useState(false)
   const categorySyncedFromSuggestion = useRef<string | null>(null)
+  const categorySetByAI = useRef<string | null>(null)
+  // Simple in-memory cache: description → category (last 5)
+  const aiCategoryCache = useRef<Map<string, string>>(new Map())
 
   const suggestedCategory = useMemo(
     () => suggestCategoryFromDescription(description),
     [description],
   )
 
+  // Rule-based suggestion (only when AI toggle is OFF)
   useEffect(() => {
+    if (autoCategoryOn) return
     const suggestion = suggestedCategory
     setCategory((prev) => {
       const prevTrim = prev.trim()
@@ -320,7 +327,59 @@ export default function DashboardPage() {
       }
       return prev
     })
-  }, [suggestedCategory])
+  }, [suggestedCategory, autoCategoryOn])
+
+  // AI-based category detection (debounced 600ms, only when toggle is ON)
+  useEffect(() => {
+    if (!autoCategoryOn) return
+    const desc = description.trim()
+    if (desc.length < 4) return
+    const timer = setTimeout(async () => {
+      // Check cache first
+      const cached = aiCategoryCache.current.get(desc)
+      if (cached) {
+        setCategory((prev) => {
+          const prevTrim = prev.trim()
+          if (!prevTrim || prevTrim === categorySetByAI.current || isOtherLikeCategoryLabel(prevTrim)) {
+            categorySetByAI.current = cached
+            return cached
+          }
+          return prev
+        })
+        return
+      }
+      setCategoryLoading(true)
+      try {
+        const res = await authedFetch('/api/categorize', {
+          method: 'POST',
+          json: { description: desc },
+        })
+        const data = await readAuthedJson<{ category: string }>(res)
+        if (data.ok && data.data.category) {
+          const cat = data.data.category
+          // Update cache (keep only last 5)
+          if (aiCategoryCache.current.size >= 5) {
+            const firstKey = aiCategoryCache.current.keys().next().value
+            if (firstKey !== undefined) aiCategoryCache.current.delete(firstKey)
+          }
+          aiCategoryCache.current.set(desc, cat)
+          setCategory((prev) => {
+            const prevTrim = prev.trim()
+            if (!prevTrim || prevTrim === categorySetByAI.current || isOtherLikeCategoryLabel(prevTrim)) {
+              categorySetByAI.current = cat
+              return cat
+            }
+            return prev
+          })
+        }
+      } catch {
+        // Silently fall back — do not disrupt the form
+      } finally {
+        setCategoryLoading(false)
+      }
+    }, 600)
+    return () => clearTimeout(timer)
+  }, [description, autoCategoryOn])
 
   useEffect(() => {
     if (process.env.NODE_ENV === 'development' && transactions.length > 0) {
@@ -669,6 +728,7 @@ export default function DashboardPage() {
     setDescription('')
     setEntryType('debit')
     categorySyncedFromSuggestion.current = null
+    categorySetByAI.current = null
     await loadDashboard()
   }
 
@@ -992,23 +1052,50 @@ export default function DashboardPage() {
                 >
                   Category
                 </label>
-                <input
-                  id="txCategory"
-                  type="text"
-                  required
-                  value={category}
-                  onChange={(e) => setCategory(e.target.value)}
-                  className={inputClass}
-                  placeholder="Groceries"
-                />
+                <div className="relative">
+                  <input
+                    id="txCategory"
+                    type="text"
+                    required
+                    value={category}
+                    onChange={(e) => {
+                      // User manually edited — detach from AI/rule tracking
+                      categorySyncedFromSuggestion.current = null
+                      categorySetByAI.current = null
+                      setCategory(e.target.value)
+                    }}
+                    className={`${inputClass} ${categoryLoading ? 'pr-8' : ''}`}
+                    placeholder="Groceries"
+                  />
+                  {categoryLoading && (
+                    <span className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-indigo-500" aria-hidden />
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="space-y-1.5 md:col-span-2">
-                <label
-                  htmlFor="tx-description"
-                  className="block text-xs font-medium text-zinc-600/90 dark:text-zinc-400/90"
-                >
-                  Description
-                </label>
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="tx-description"
+                    className="block text-xs font-medium text-zinc-600/90 dark:text-zinc-400/90"
+                  >
+                    Description
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setAutoCategoryOn((v) => !v)}
+                    className={`inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-xs font-medium transition-colors duration-150 ${
+                      autoCategoryOn
+                        ? 'bg-indigo-100 text-indigo-700 hover:bg-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:hover:bg-indigo-900/60'
+                        : 'bg-zinc-100 text-zinc-500 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-400 dark:hover:bg-zinc-700'
+                    }`}
+                    aria-pressed={autoCategoryOn}
+                  >
+                    <Bot className="h-3 w-3" aria-hidden />
+                    Auto-detect category
+                  </button>
+                </div>
                 <textarea
                   id="tx-description"
                   rows={2}
@@ -1017,7 +1104,7 @@ export default function DashboardPage() {
                   className={`${inputClass} resize-none`}
                   placeholder="e.g. Swiggy lunch, Uber ride"
                 />
-                {suggestedCategory ? (
+                {!autoCategoryOn && suggestedCategory ? (
                   <p className="text-xs text-zinc-500/90 dark:text-zinc-400/85">
                     Suggested:{' '}
                     <span
