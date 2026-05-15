@@ -1,4 +1,4 @@
-# FlowFi — AI-Powered Personal Finance OS
+# FlowFi — AI-Powered Personal Finance WebApp
 
 FlowFi is a production-style web app for people who want **one surface** for cash flow, categorization, and decisions—not another passive tracker.
 
